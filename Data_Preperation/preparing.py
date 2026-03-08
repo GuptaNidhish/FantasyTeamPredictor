@@ -23,4 +23,43 @@ player_match_df = batter_df.merge(
     how="outer"
 )
 player_match_df = player_match_df.fillna(0)
-
+catches = (
+    data[data["wicket_kind"] == "caught"]
+    .groupby(["match_id", "fielders"])
+    .size()
+    .reset_index(name="catches")
+)
+stumpings = (
+    data[data["wicket_kind"] == "stumped"]
+    .groupby(["match_id", "fielders"])
+    .size()
+    .reset_index(name="stumpings")
+)
+runout_raw = data[data["wicket_kind"] == "run out"][["match_id", "fielders"]].copy()
+runout_raw = runout_raw.dropna(subset=["fielders"])
+runout_raw["num_fielders"] = runout_raw["fielders"].str.count(",") + 1
+runout_raw["fielders"] = runout_raw["fielders"].str.split(",")
+runout_raw = runout_raw.explode("fielders")
+runout_raw["fielders"] = runout_raw["fielders"].str.strip()
+runout_raw["runout_points"] = 0
+runout_raw.loc[runout_raw["num_fielders"] == 1, "runout_points"] = 12
+runout_raw.loc[runout_raw["num_fielders"] > 1, "runout_points"] = 6
+runout_points = (
+    runout_raw.groupby(["match_id", "fielders"])["runout_points"]
+    .sum()
+    .reset_index()
+)
+runout_points = runout_points.rename(columns={"fielders": "player"})
+catches = catches.rename(columns={"fielders": "player"})
+stumpings = stumpings.rename(columns={"fielders": "player"})
+fielding_df = catches.merge(stumpings,on = ['match_id','player'],how = 'outer')
+fielding_df = fielding_df.merge(runout_points,on=["match_id", "player"],how="outer")
+fielding_df = fielding_df.fillna(0)
+fielding_df['fielding_points'] = fielding_df['catches']*8 + fielding_df['stumpings']*12 + fielding_df["runout_points"]
+fielding_df.loc[fielding_df['catches']>=3,'fielding_points'] += 4
+player_match_df = player_match_df.merge(
+    fielding_df[["match_id", "player", "fielding_points"]],
+    on=["match_id", "player"],
+    how="left"
+)
+player_match_df['fielding_points'] = player_match_df['fielding_points'].fillna(0)
