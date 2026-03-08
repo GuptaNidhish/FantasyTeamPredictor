@@ -377,3 +377,35 @@ def detect_role(row):
     else:
         return "allrounder"
 player_match_df["player_role"] = player_match_df.apply(detect_role, axis=1)
+player_match_df['last10_std_points'] = (
+    player_match_df
+    .groupby('player')['fantasy_points']
+    .rolling(10, min_periods=3)
+    .std()
+    .shift(1)
+    .reset_index(level=0, drop=True)
+)
+player_match_df['player_consistency_index'] = (
+    player_match_df['last10_avg_points'] /
+    player_match_df['last10_std_points']
+)
+player_match_df['player_consistency_index'] = (
+    player_match_df['player_consistency_index']
+    .replace([float('inf'), -float('inf')], 0)
+    .fillna(0)
+)
+player_match_df['form_momentum'] = (
+    player_match_df['last3_avg_points'] - player_match_df['last10_avg_points']
+)
+bat_pos_data = data[['match_id','batter','bat_pos']]
+bat_pos_data = bat_pos_data.groupby(['batter'])['bat_pos'].agg(lambda x: x.mode()[0]).reset_index()
+bat_pos_data = bat_pos_data.rename(columns = {'batter':'player'})
+player_match_df = pd.merge(player_match_df,bat_pos_data,on = ['player'],how = 'left')
+player_match_df['boundary_percentage'] = (player_match_df['fours']*4 + player_match_df['sixes']*6)/player_match_df['runs']
+player_match_df['boundary_percentage'] = player_match_df['boundary_percentage'].fillna(0)
+match_batting_pos = data[['match_id','batter','bat_pos']]
+match_batting_pos = match_batting_pos.groupby(['match_id','batter'])['bat_pos'].first().reset_index()
+match_batting_pos = match_batting_pos.rename(columns = {'batter':'player','bat_pos':'bat_pos_per_match'})
+player_match_df = pd.merge(player_match_df,match_batting_pos,on = ['match_id','player'],how = 'left')
+player_match_df['bat_pos_per_match'] = player_match_df['bat_pos_per_match'].fillna(player_match_df['bat_pos'])
+player_match_df.to_csv("/Users/nidhishgupta/Desktop/Dream11_Fantasy Team_Predictor/data/half_processed/half_prepared_data.csv")
