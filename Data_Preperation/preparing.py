@@ -259,3 +259,121 @@ player_match_df = player_match_df.merge(
     on=["player", "opponent"],
     how="left"
 )
+pitch_map = {
+# Pune
+"Subrata Roy Sahara Stadium": "balanced",
+"Maharashtra Cricket Association Stadium": "balanced",
+"Maharashtra Cricket Association Stadium, Pune": "balanced",
+# Mumbai
+"Wankhede Stadium": "batting_friendly",
+"Wankhede Stadium, Mumbai": "batting_friendly",
+"Brabourne Stadium": "batting_friendly",
+"Brabourne Stadium, Mumbai": "batting_friendly",
+"Dr DY Patil Sports Academy": "batting_friendly",
+"Dr DY Patil Sports Academy, Mumbai": "batting_friendly",
+# Chennai
+"MA Chidambaram Stadium": "spin_friendly",
+"MA Chidambaram Stadium, Chepauk": "spin_friendly",
+"MA Chidambaram Stadium, Chepauk, Chennai": "spin_friendly",
+# Bangalore
+"M Chinnaswamy Stadium": "batting_friendly",
+"M Chinnaswamy Stadium, Bengaluru": "batting_friendly",
+"M.Chinnaswamy Stadium": "batting_friendly",
+# Hyderabad
+"Rajiv Gandhi International Stadium": "balanced",
+"Rajiv Gandhi International Stadium, Uppal": "balanced",
+"Rajiv Gandhi International Stadium, Uppal, Hyderabad": "balanced",
+# Delhi
+"Feroz Shah Kotla": "batting_friendly",
+"Arun Jaitley Stadium": "batting_friendly",
+"Arun Jaitley Stadium, Delhi": "batting_friendly",
+# Kolkata
+"Eden Gardens": "balanced",
+"Eden Gardens, Kolkata": "balanced",
+# Jaipur
+"Sawai Mansingh Stadium": "balanced",
+"Sawai Mansingh Stadium, Jaipur": "balanced",
+# Vizag
+"Dr. Y.S. Rajasekhara Reddy ACA-VDCA Cricket Stadium": "balanced",
+"Dr. Y.S. Rajasekhara Reddy ACA-VDCA Cricket Stadium, Visakhapatnam": "balanced",
+# Mohali / Punjab
+"Punjab Cricket Association Stadium, Mohali": "pace_friendly",
+"Punjab Cricket Association IS Bindra Stadium": "pace_friendly",
+"Punjab Cricket Association IS Bindra Stadium, Mohali": "pace_friendly",
+"Punjab Cricket Association IS Bindra Stadium, Mohali, Chandigarh": "pace_friendly",
+# Lucknow
+"Bharat Ratna Shri Atal Bihari Vajpayee Ekana Cricket Stadium, Lucknow": "spin_friendly",
+# Ahmedabad
+"Narendra Modi Stadium, Ahmedabad": "balanced",
+"Sardar Patel Stadium, Motera": "balanced",
+# Dharamshala
+"Himachal Pradesh Cricket Association Stadium": "pace_friendly",
+"Himachal Pradesh Cricket Association Stadium, Dharamsala": "pace_friendly",
+# Cuttack
+"Barabati Stadium": "balanced",
+# Ranchi
+"JSCA International Stadium Complex": "balanced",
+# Guwahati
+"Barsapara Cricket Stadium, Guwahati": "batting_friendly",
+# Raipur
+"Shaheed Veer Narayan Singh International Stadium": "balanced",
+# Rajkot
+"Saurashtra Cricket Association Stadium": "batting_friendly",
+# Kanpur
+"Green Park": "spin_friendly",
+# Indore
+"Holkar Cricket Stadium": "batting_friendly",
+# Nagpur
+"Vidarbha Cricket Association Stadium, Jamtha": "balanced",
+# Kochi
+"Nehru Stadium": "batting_friendly",
+# Chandigarh new stadium
+"Maharaja Yadavindra Singh International Cricket Stadium, Mullanpur": "balanced",
+"Maharaja Yadavindra Singh International Cricket Stadium, New Chandigarh": "balanced",
+# UAE
+"Dubai International Cricket Stadium": "balanced",
+"Sharjah Cricket Stadium": "batting_friendly",
+"Sheikh Zayed Stadium": "balanced",
+"Zayed Cricket Stadium, Abu Dhabi": "balanced",
+# South Africa IPL 2009
+"Newlands": "balanced",
+"St George's Park": "pace_friendly",
+"Kingsmead": "pace_friendly",
+"New Wanderers Stadium": "batting_friendly",
+"SuperSport Park": "batting_friendly",
+"Buffalo Park": "balanced",
+"OUTsurance Oval": "balanced",
+"De Beers Diamond Oval": "balanced"
+}
+player_match_df["pitch_type"] = player_match_df["venue"].map(pitch_map)
+match_runs = player_match_df.groupby("match_id")["runs"].sum().reset_index()
+match_runs.rename(columns={"runs": "total_match_runs"}, inplace=True)
+match_runs = match_runs.merge(
+    player_match_df[["match_id", "venue"]].drop_duplicates(),
+    on="match_id"
+)
+venue_avg_runs = match_runs.groupby("venue")["total_match_runs"].mean()
+overall_avg_runs = match_runs["total_match_runs"].mean()
+venue_run_factor = venue_avg_runs / overall_avg_runs
+player_match_df["venue_run_factor"] = player_match_df["venue"].map(venue_run_factor)
+denominator = player_match_df["fantasy_points"] - player_match_df["fielding_points"]
+player_match_df["batting_contribution_ratio"] = (
+    player_match_df["batting_points"]
+    + player_match_df["batting_bonus"]
+    + player_match_df["sr_bonus"]
+)/denominator.replace(0, 1)
+player_match_df["bowling_contribution_ratio"] = (
+    player_match_df["bowling_points"]
+    + player_match_df["eco_bonus"]
+    + player_match_df["wicket_bonus"]
+    + player_match_df["lbw_bowled_bonus"]
+    + player_match_df["maiden_points"]
+)/denominator.replace(0, 1)
+def detect_role(row):
+    if row["batting_contribution_ratio"] > 0.75:
+        return "batsman"
+    elif row["bowling_contribution_ratio"] > 0.75:
+        return "bowler"
+    else:
+        return "allrounder"
+player_match_df["player_role"] = player_match_df.apply(detect_role, axis=1)
