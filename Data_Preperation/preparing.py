@@ -197,3 +197,65 @@ player_match_df = player_match_df.sort_values(["player", "date"])
 player_match_df["player_match_number"] = (
     player_match_df.groupby("player").cumcount() + 1
 )
+player_match_df["last3_avg_points"] = (
+    player_match_df
+    .groupby("player")["fantasy_points"]
+    .rolling(3)
+    .mean()
+    .shift(1)
+    .reset_index(level=0, drop=True)
+)
+player_match_df["last5_avg_points"] = (
+    player_match_df
+    .groupby("player")["fantasy_points"]
+    .rolling(5)
+    .mean()
+    .shift(1)
+    .reset_index(level=0, drop=True)
+)
+player_match_df["last10_avg_points"] = (
+    player_match_df
+    .groupby("player")["fantasy_points"]
+    .rolling(10)
+    .mean()
+    .shift(1)
+    .reset_index(level=0, drop=True)
+)
+player_match_df["rolling_strike_rate"] = (
+    player_match_df
+    .groupby("player")["strike_rate"]
+    .rolling(5)
+    .mean()
+    .shift(1)
+    .reset_index(level=0, drop=True)
+)
+player_match_df["rolling_wickets"] = (
+    player_match_df
+    .groupby("player")["wickets"]
+    .rolling(5)
+    .mean()
+    .shift(1)
+    .reset_index(level=0, drop=True)
+)
+venue_avg = (
+    player_match_df
+    .groupby(["player", "venue"])["fantasy_points"]
+    .mean()
+    .reset_index(name="venue_avg_points")
+)
+player_match_df = player_match_df.merge(
+    venue_avg,
+    on=["player", "venue"],
+    how="left"
+)
+opp_avg = (
+    player_match_df
+    .groupby(["player", "opponent"])["fantasy_points"]
+    .mean()
+    .reset_index(name="opponent_avg_points")
+)
+player_match_df = player_match_df.merge(
+    opp_avg,
+    on=["player", "opponent"],
+    how="left"
+)
