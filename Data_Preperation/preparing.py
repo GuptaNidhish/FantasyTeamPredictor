@@ -151,3 +151,49 @@ player_match_df["fantasy_points"] = (
     + player_match_df["maiden_points"]
     + player_match_df["fielding_points"]
 )
+match_meta = data[[
+    "match_id",
+    "venue",
+    "city",
+    "toss_winner",
+    "toss_decision",
+    "stage",
+    "season"
+]].drop_duplicates()
+player_team = data[[
+    "match_id",
+    "batter",
+    "bowler",
+    "batting_team",
+    "bowling_team"
+]]
+batter_team = player_team[["match_id","batter","batting_team","bowling_team"]]
+batter_team = batter_team.rename(columns={
+    "batter":"player",
+    "batting_team":"team",
+    "bowling_team":"opponent"
+})
+bowler_team = player_team[["match_id","bowler","batting_team","bowling_team"]]
+bowler_team = bowler_team.rename(columns={
+    "bowler":"player",
+    "bowling_team":"team",
+    "batting_team":"opponent"
+})
+player_teams = pd.concat([batter_team, bowler_team])
+player_teams = player_teams.drop_duplicates()
+player_match_df = player_match_df.merge(
+    player_teams,
+    on=["match_id","player"],
+    how="left"
+)
+player_match_df = player_match_df.merge(
+    match_meta,
+    on="match_id",
+    how="left"
+)
+match_date = data[["match_id", "date"]].drop_duplicates()
+player_match_df = player_match_df.merge(match_date, on="match_id", how="left")
+player_match_df = player_match_df.sort_values(["player", "date"])
+player_match_df["player_match_number"] = (
+    player_match_df.groupby("player").cumcount() + 1
+)
