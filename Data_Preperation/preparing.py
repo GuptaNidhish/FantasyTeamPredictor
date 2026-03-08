@@ -63,3 +63,22 @@ player_match_df = player_match_df.merge(
     how="left"
 )
 player_match_df['fielding_points'] = player_match_df['fielding_points'].fillna(0)
+player_match_df["batting_points"] = (
+    player_match_df["runs"]
+    + player_match_df["fours"] * 1
+    + player_match_df["sixes"] * 2
+)
+duck_mask = (player_match_df["runs"] == 0) & (player_match_df["balls"] > 0)
+player_match_df.loc[duck_mask, "batting_points"] -= 2
+player_match_df["batting_bonus"] = 0
+player_match_df.loc[player_match_df["runs"] >= 30, "batting_bonus"] = 4
+player_match_df.loc[player_match_df["runs"] >= 50, "batting_bonus"] = 8
+player_match_df.loc[player_match_df["runs"] >= 100, "batting_bonus"] = 16
+player_match_df["sr_bonus"] = 0
+mask = player_match_df["balls"] >= 10
+player_match_df.loc[mask & (player_match_df["strike_rate"] < 50), "sr_bonus"] = -6
+player_match_df.loc[mask & (player_match_df["strike_rate"].between(50,59.99)), "sr_bonus"] = -4
+player_match_df.loc[mask & (player_match_df["strike_rate"].between(60,69.99)), "sr_bonus"] = -2
+player_match_df.loc[mask & (player_match_df["strike_rate"].between(130,149.99)), "sr_bonus"] = 2
+player_match_df.loc[mask & (player_match_df["strike_rate"].between(150,169.99)), "sr_bonus"] = 4
+player_match_df.loc[mask & (player_match_df["strike_rate"] >= 170), "sr_bonus"] = 6
