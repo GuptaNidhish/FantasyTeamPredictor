@@ -82,3 +82,72 @@ player_match_df.loc[mask & (player_match_df["strike_rate"].between(60,69.99)), "
 player_match_df.loc[mask & (player_match_df["strike_rate"].between(130,149.99)), "sr_bonus"] = 2
 player_match_df.loc[mask & (player_match_df["strike_rate"].between(150,169.99)), "sr_bonus"] = 4
 player_match_df.loc[mask & (player_match_df["strike_rate"] >= 170), "sr_bonus"] = 6
+player_match_df["wicket_bonus"] = 0
+player_match_df.loc[player_match_df["wickets"] >= 3, "wicket_bonus"] = 4
+player_match_df.loc[player_match_df["wickets"] >= 4, "wicket_bonus"] = 8
+player_match_df.loc[player_match_df["wickets"] >= 5, "wicket_bonus"] = 16
+player_match_df["eco_bonus"] = 0
+mask = player_match_df["balls_bowled"] >= 12
+player_match_df.loc[mask & (player_match_df["economy"] < 5), "eco_bonus"] = 6
+player_match_df.loc[mask & (player_match_df["economy"].between(5,5.99)), "eco_bonus"] = 4
+player_match_df.loc[mask & (player_match_df["economy"].between(6,6.99)), "eco_bonus"] = 2
+player_match_df.loc[mask & (player_match_df["economy"].between(10,11)), "eco_bonus"] = -2
+player_match_df.loc[mask & (player_match_df["economy"].between(11.01,12)), "eco_bonus"] = -4
+player_match_df.loc[mask & (player_match_df["economy"] > 12), "eco_bonus"] = -6
+lbw_bowled = data[
+    data["wicket_kind"].isin(["bowled", "lbw"])
+]
+lbw_bowled = (
+    lbw_bowled
+    .groupby(["match_id", "bowler"])
+    .size()
+    .reset_index(name="lbw_bowled_wickets")
+)
+lbw_bowled["lbw_bowled_bonus"] = lbw_bowled["lbw_bowled_wickets"] * 8
+lbw_bowled = lbw_bowled.rename(columns={"bowler": "player"})
+player_match_df = player_match_df.merge(
+    lbw_bowled[["match_id", "player", "lbw_bowled_bonus"]],
+    on=["match_id", "player"],
+    how="left"
+)
+player_match_df["lbw_bowled_bonus"] = player_match_df["lbw_bowled_bonus"].fillna(0)
+player_match_df["bowling_points"] = player_match_df["wickets"] * 25
+valid_balls = data[data["valid_ball"] == 1]
+over_runs = (
+    valid_balls
+    .groupby(["match_id", "bowler", "over"])
+    .agg(
+        balls=("valid_ball", "count"),
+        runs=("runs_bowler", "sum")
+    )
+    .reset_index()
+)
+maiden_overs = over_runs[
+    (over_runs["balls"] == 6) &
+    (over_runs["runs"] == 0)
+]
+maiden_overs = (
+    maiden_overs
+    .groupby(["match_id", "bowler"])
+    .size()
+    .reset_index(name="maidens")
+)
+maiden_overs["maiden_points"] = maiden_overs["maidens"] * 12
+maiden_overs = maiden_overs.rename(columns={"bowler": "player"})
+player_match_df = player_match_df.merge(
+    maiden_overs[["match_id", "player", "maiden_points"]],
+    on=["match_id", "player"],
+    how="left"
+)
+player_match_df["maiden_points"] = player_match_df["maiden_points"].fillna(0)
+player_match_df["fantasy_points"] = (
+    player_match_df["batting_points"]
+    + player_match_df["batting_bonus"]
+    + player_match_df["sr_bonus"]
+    + player_match_df["bowling_points"]
+    + player_match_df["wicket_bonus"]
+    + player_match_df["eco_bonus"]
+    + player_match_df["lbw_bowled_bonus"]
+    + player_match_df["maiden_points"]
+    + player_match_df["fielding_points"]
+)
