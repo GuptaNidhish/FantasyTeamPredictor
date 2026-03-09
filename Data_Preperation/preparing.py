@@ -408,4 +408,4 @@ match_batting_pos = match_batting_pos.groupby(['match_id','batter'])['bat_pos'].
 match_batting_pos = match_batting_pos.rename(columns = {'batter':'player','bat_pos':'bat_pos_per_match'})
 player_match_df = pd.merge(player_match_df,match_batting_pos,on = ['match_id','player'],how = 'left')
 player_match_df['bat_pos_per_match'] = player_match_df['bat_pos_per_match'].fillna(player_match_df['bat_pos'])
-player_match_df.to_csv("/Users/nidhishgupta/Desktop/Dream11_Fantasy Team_Predictor/data/half_processed/half_prepared_data.csv")
+player_match_df.to_csv("/Users/nidhishgupta/Desktop/Dream11_Fantasy Team_Predictor/data/half_processed/half_prepared_data.csv",index = False)
