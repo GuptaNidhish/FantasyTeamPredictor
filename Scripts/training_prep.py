@@ -4,6 +4,9 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.preprocessing import OneHotEncoder
 import joblib
 data = pd.read_csv('/Users/nidhishgupta/Desktop/Dream11_Fantasy Team_Predictor/data/half_processed/half_prepared_data.csv')
+raw_data = pd.read_csv("/Users/nidhishgupta/Desktop/Dream11_Fantasy Team_Predictor/data/raw/IPL.csv")
+wk_list = raw_data.loc[raw_data['wicket_kind']=='stumped','fielders'].unique()
+data["player_role_wicketkeeper"] = data["player"].isin(wk_list).astype(int)
 team_map = {
     "Royal Challengers Bangalore": "Royal Challengers Bengaluru",
     "Kings XI Punjab": "Punjab Kings",
@@ -59,3 +62,4 @@ data = pd.get_dummies(
 data.to_csv("/Users/nidhishgupta/Desktop/Dream11_Fantasy Team_Predictor/data/processed/ready_for_training.csv",index = False)
 joblib.dump(le_player,"/Users/nidhishgupta/Desktop/Dream11_Fantasy Team_Predictor/encoders/player_encoder.pkl")
 joblib.dump(le_venue,"/Users/nidhishgupta/Desktop/Dream11_Fantasy Team_Predictor/encoders/venue_encoder.pkl")
+
