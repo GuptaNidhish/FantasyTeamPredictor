@@ -36,7 +36,7 @@ cols_to_drop = [
 data = data.drop(columns = cols_to_drop)
 data['date'] = pd.to_datetime(data['date'])
 data['match_month'] = data['date'].dt.month
-data = data.drop(columns=['date','match_id'])
+data = data.drop(columns=['date'])
 data.to_csv("/Users/nidhishgupta/Desktop/Dream11_Fantasy Team_Predictor/data/processed/data_processed.csv",index = False)
 data['team_won_toss'] = (
     data['team'] == data['toss_winner']
