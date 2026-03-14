@@ -259,6 +259,73 @@ player_match_df = player_match_df.merge(
     on=["player", "opponent"],
     how="left"
 )
+venue_map = {
+
+# Chennai
+"MA Chidambaram Stadium, Chepauk": "MA Chidambaram Stadium",
+"MA Chidambaram Stadium, Chepauk, Chennai": "MA Chidambaram Stadium",
+
+# Bengaluru
+"M Chinnaswamy Stadium, Bengaluru": "M Chinnaswamy Stadium",
+"M.Chinnaswamy Stadium": "M Chinnaswamy Stadium",
+
+# Mumbai
+"Wankhede Stadium, Mumbai": "Wankhede Stadium",
+"Brabourne Stadium, Mumbai": "Brabourne Stadium",
+"Dr DY Patil Sports Academy, Mumbai": "Dr DY Patil Sports Academy",
+
+# Ahmedabad
+"Narendra Modi Stadium, Ahmedabad": "Narendra Modi Stadium",
+"Sardar Patel Stadium, Motera": "Narendra Modi Stadium",
+
+# Delhi
+"Arun Jaitley Stadium, Delhi": "Arun Jaitley Stadium",
+"Feroz Shah Kotla": "Arun Jaitley Stadium",
+
+# Hyderabad
+"Rajiv Gandhi International Stadium, Uppal": "Rajiv Gandhi International Stadium",
+"Rajiv Gandhi International Stadium, Uppal, Hyderabad": "Rajiv Gandhi International Stadium",
+"Rajiv Gandhi International Stadium": "Rajiv Gandhi International Stadium",
+
+# Kolkata
+"Eden Gardens, Kolkata": "Eden Gardens",
+
+# Jaipur
+"Sawai Mansingh Stadium, Jaipur": "Sawai Mansingh Stadium",
+
+# Mohali
+"Punjab Cricket Association Stadium, Mohali": "Punjab Cricket Association IS Bindra Stadium, Mohali",
+"Punjab Cricket Association IS Bindra Stadium": "Punjab Cricket Association IS Bindra Stadium, Mohali",
+"Punjab Cricket Association IS Bindra Stadium, Mohali, Chandigarh": "Punjab Cricket Association IS Bindra Stadium, Mohali",
+
+# Vizag
+"Dr. Y.S. Rajasekhara Reddy ACA-VDCA Cricket Stadium, Visakhapatnam":
+"Dr. Y.S. Rajasekhara Reddy ACA-VDCA Cricket Stadium",
+
+# Dharamsala
+"Himachal Pradesh Cricket Association Stadium":
+"Himachal Pradesh Cricket Association Stadium, Dharamsala",
+
+# Pune
+"Maharashtra Cricket Association Stadium, Pune":
+"Maharashtra Cricket Association Stadium",
+
+# Guwahati
+"Barsapara Cricket Stadium, Guwahati": "Barsapara Cricket Stadium",
+
+# Lucknow
+"Bharat Ratna Shri Atal Bihari Vajpayee Ekana Cricket Stadium, Lucknow":
+"Bharat Ratna Shri Atal Bihari Vajpayee Ekana Cricket Stadium",
+
+# Abu Dhabi
+"Zayed Cricket Stadium, Abu Dhabi": "Sheikh Zayed Stadium",
+
+# Chandigarh new stadium
+"Maharaja Yadavindra Singh International Cricket Stadium, New Chandigarh":
+"Maharaja Yadavindra Singh International Cricket Stadium, Mullanpur",
+
+}
+
 pitch_map = {
 # Pune
 "Subrata Roy Sahara Stadium": "balanced",
@@ -345,6 +412,7 @@ pitch_map = {
 "OUTsurance Oval": "balanced",
 "De Beers Diamond Oval": "balanced"
 }
+data['venue'] = data['venue'].replace(venue_map)
 player_match_df["pitch_type"] = player_match_df["venue"].map(pitch_map)
 match_runs = player_match_df.groupby("match_id")["runs"].sum().reset_index()
 match_runs.rename(columns={"runs": "total_match_runs"}, inplace=True)
