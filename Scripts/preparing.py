@@ -205,6 +205,15 @@ player_match_df["last3_avg_points"] = (
     .shift(1)
     .reset_index(level=0, drop=True)
 )
+team_map = {
+    "Royal Challengers Bangalore": "Royal Challengers Bengaluru",
+    "Kings XI Punjab": "Punjab Kings",
+    "Delhi Daredevils": "Delhi Capitals",
+    "Rising Pune Supergiant": "Rising Pune Supergiants"
+}
+player_match_df['team'] = player_match_df['team'].replace(team_map)
+player_match_df['opponent'] = player_match_df['opponent'].replace(team_map)
+player_match_df['toss_winner'] = player_match_df['toss_winner'].replace(team_map)
 player_match_df["last5_avg_points"] = (
     player_match_df
     .groupby("player")["fantasy_points"]
@@ -236,17 +245,6 @@ player_match_df["rolling_wickets"] = (
     .mean()
     .shift(1)
     .reset_index(level=0, drop=True)
-)
-venue_avg = (
-    player_match_df
-    .groupby(["player", "venue"])["fantasy_points"]
-    .mean()
-    .reset_index(name="venue_avg_points")
-)
-player_match_df = player_match_df.merge(
-    venue_avg,
-    on=["player", "venue"],
-    how="left"
 )
 opp_avg = (
     player_match_df
@@ -412,13 +410,89 @@ pitch_map = {
 "OUTsurance Oval": "balanced",
 "De Beers Diamond Oval": "balanced"
 }
-data['venue'] = data['venue'].replace(venue_map)
+player_match_df['venue'] = player_match_df['venue'].replace(venue_map)
+venue_map2 = {
+
+# Eden Gardens
+"Eden Gardens, Kolkata": "Eden Gardens",
+
+# Wankhede
+"Wankhede Stadium, Mumbai": "Wankhede Stadium",
+
+# Chinnaswamy
+"M Chinnaswamy Stadium, Bengaluru": "M Chinnaswamy Stadium",
+"M.Chinnaswamy Stadium": "M Chinnaswamy Stadium",
+
+# Kotla / Arun Jaitley
+"Feroz Shah Kotla": "Arun Jaitley Stadium",
+"Arun Jaitley Stadium, Delhi": "Arun Jaitley Stadium",
+
+# Chepauk
+"MA Chidambaram Stadium, Chepauk": "MA Chidambaram Stadium",
+"MA Chidambaram Stadium, Chepauk, Chennai": "MA Chidambaram Stadium",
+"MA Chidambaram Stadium": "MA Chidambaram Stadium",
+
+# Hyderabad
+"Rajiv Gandhi International Stadium, Uppal": "Rajiv Gandhi International Stadium",
+"Rajiv Gandhi International Stadium, Uppal, Hyderabad": "Rajiv Gandhi International Stadium",
+
+# Sawai Mansingh
+"Sawai Mansingh Stadium, Jaipur": "Sawai Mansingh Stadium",
+
+# Narendra Modi / Motera
+"Sardar Patel Stadium, Motera": "Narendra Modi Stadium, Ahmedabad",
+
+# Punjab / Mohali
+"Punjab Cricket Association Stadium, Mohali": "Punjab Cricket Association IS Bindra Stadium",
+"Punjab Cricket Association IS Bindra Stadium, Mohali": "Punjab Cricket Association IS Bindra Stadium",
+"Punjab Cricket Association IS Bindra Stadium, Mohali, Chandigarh": "Punjab Cricket Association IS Bindra Stadium",
+
+# Ekana
+"Bharat Ratna Shri Atal Bihari Vajpayee Ekana Cricket Stadium, Lucknow":
+"Ekana Cricket Stadium",
+
+# DY Patil
+"Dr DY Patil Sports Academy, Mumbai": "Dr DY Patil Sports Academy",
+
+# Maharashtra Cricket Association
+"Maharashtra Cricket Association Stadium, Pune": "Maharashtra Cricket Association Stadium",
+
+# Brabourne
+"Brabourne Stadium, Mumbai": "Brabourne Stadium",
+
+# Vizag
+"Dr. Y.S. Rajasekhara Reddy ACA-VDCA Cricket Stadium, Visakhapatnam":
+"Dr. Y.S. Rajasekhara Reddy ACA-VDCA Cricket Stadium",
+
+# Dharamsala
+"Himachal Pradesh Cricket Association Stadium, Dharamsala":
+"Himachal Pradesh Cricket Association Stadium",
+
+# Abu Dhabi
+"Zayed Cricket Stadium, Abu Dhabi": "Sheikh Zayed Stadium",
+
+# Mullanpur
+"Maharaja Yadavindra Singh International Cricket Stadium, New Chandigarh":
+"Maharaja Yadavindra Singh International Cricket Stadium, Mullanpur",
+}
+player_match_df['venue'] = player_match_df['venue'].replace(venue_map2)
 player_match_df["pitch_type"] = player_match_df["venue"].map(pitch_map)
 match_runs = player_match_df.groupby("match_id")["runs"].sum().reset_index()
 match_runs.rename(columns={"runs": "total_match_runs"}, inplace=True)
 match_runs = match_runs.merge(
     player_match_df[["match_id", "venue"]].drop_duplicates(),
     on="match_id"
+)
+venue_avg = (
+    player_match_df
+    .groupby(["player", "venue"])["fantasy_points"]
+    .mean()
+    .reset_index(name="venue_avg_points")
+)
+player_match_df = player_match_df.merge(
+    venue_avg,
+    on=["player", "venue"],
+    how="left"
 )
 venue_avg_runs = match_runs.groupby("venue")["total_match_runs"].mean()
 overall_avg_runs = match_runs["total_match_runs"].mean()
