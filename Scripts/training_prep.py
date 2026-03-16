@@ -42,6 +42,9 @@ data['team_won_toss'] = (
     data['team'] == data['toss_winner']
 ).astype(int)
 data = data.drop(columns=['toss_winner','city'])
+data['recent_form'] = (data['last3_avg_points']*0.6 + data['last5_avg_points']*0.3 + data['last10_avg_points']*0.1)
+data['venue_form'] = data['venue_avg_points'] * data['recent_form']
+data.to_csv("/Users/nidhishgupta/Desktop/Dream11_Fantasy Team_Predictor/data/processed/historical_data.csv",index = False)
 one_hot_cols = [
     'team',
     'opponent',
@@ -50,16 +53,22 @@ one_hot_cols = [
     'pitch_type',
     'player_role'
 ]
-le_player = LabelEncoder()
-data['player'] = le_player.fit_transform(data['player'])
-le_venue = LabelEncoder()
-data['venue'] = le_venue.fit_transform(data['venue'])
 data = pd.get_dummies(
     data,
     columns=one_hot_cols,
     drop_first=True
 )
-data.to_csv("/Users/nidhishgupta/Desktop/Dream11_Fantasy Team_Predictor/data/processed/ready_for_training.csv",index = False)
-joblib.dump(le_player,"/Users/nidhishgupta/Desktop/Dream11_Fantasy Team_Predictor/encoders/player_encoder.pkl")
-joblib.dump(le_venue,"/Users/nidhishgupta/Desktop/Dream11_Fantasy Team_Predictor/encoders/venue_encoder.pkl")
-
+colsToDrop =  ['last5_avg_points',
+              'last10_avg_points',
+              'bat_pos_per_match',
+              'match_month',
+              'stage_Elimination Final',
+              'stage_Eliminator',
+              'stage_Final',
+              'stage_Qualifier 1',
+              'stage_Qualifier 2',
+              'stage_Semi Final',
+              'stage_Unknown',
+              ]
+data = data.drop(columns = colsToDrop)
+data.to_csv("/Users/nidhishgupta/Desktop/Dream11_Fantasy Team_Predictor/data/processed/full_req_data.csv",index = False)

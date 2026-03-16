@@ -5,7 +5,7 @@ import joblib
 data = pd.read_csv("/Users/nidhishgupta/Desktop/Dream11_Fantasy Team_Predictor/data/processed/full_req_data.csv")
 X_train = data.drop(columns=['fantasy_points','player','venue','season','player_role_batsman','player_role_bowler','match_id','player_match_number'])
 y_train = data['fantasy_points']
-best_params = {'subsample': 0.9, 'num_leaves': 127, 'min_child_samples': 5, 'max_depth': 10, 'learning_rate': 0.02, 'colsample_bytree': 0.6}
+best_params = {'subsample': 0.9, 'num_leaves': 135, 'min_child_samples': 5, 'max_depth': 10, 'learning_rate': 0.02, 'colsample_bytree': 0.6}
 final_model = LGBMRegressor(
     n_estimators=600,
     random_state=42,
