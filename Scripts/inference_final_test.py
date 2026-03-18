@@ -30,6 +30,8 @@ def map_player_name(name):
         return None
 mapped_players_1 = [map_player_name(p) for p in team1_squad]
 mapped_players_2 = [map_player_name(p) for p in team2_squad]
+mapped_players_1 = [p for p in mapped_players_1 if p is not None]
+mapped_players_2 = [p for p in mapped_players_2 if p is not None]
 all_mapped = mapped_players_1 + mapped_players_2
 unique_venue_list_from_df = historical_data['venue'].unique()
 unique_venues = list(unique_venue_list_from_df)
@@ -114,7 +116,7 @@ def get_opponent_avg(row):
 players_df = players_df.drop(columns = ['opponent_avg_points'])
 players_df['opponent_avg_points'] = players_df.apply(get_opponent_avg, axis=1)
 players_df = players_df.drop(columns = ['opponent_temp'])
-pitch_info = historical_data[historical_data['venue'] == venue]['pitch_type'].mode()[0]
+pitch_info = historical_data[historical_data['venue'] == mapped_venue]['pitch_type'].mode()[0]
 pitch_cols = [
     'pitch_type_batting_friendly',
     'pitch_type_pace_friendly',
@@ -129,7 +131,6 @@ elif pitch_info == 'spin_friendly':
     players_df['pitch_type_spin_friendly'] = True
 X_pred = players_df.drop(columns=['fantasy_points','player','venue','player_match_number','match_id','season','player_role_batsman','player_role_bowler'])
 players_df['predicted_points'] = model.predict(X_pred)
-players_df.sort_values(by= ['predicted_points'],ascending= False)
 team_map = {}
 for player in mapped_players_1:
     team_map[player] = team1
@@ -145,7 +146,7 @@ def assign_role(row):
     bowl = row['bowling_contribution_ratio']
     
     # All-rounder: contributes in BOTH
-    if bat > 0.20 and bowl > 0.20:
+    if bat > 0.15 and bowl > 0.15:
         return 'AR'
     
     # Pure batsman
@@ -243,4 +244,5 @@ print("\n🏢 Team Distribution:")
 print(team_count)
 
 print("\n👑 Captain:", captain)
-print("🤝 Vice-Captain:", vice_captain)
+print("🤝 Vice-Captain:", vice_captain)   # Will add for 💰 Budget constraint, 2. Improve team selection (BIGGEST GAIN)
+#👉 Optimal Dream11 solver using ILP (guaranteed best team) later
