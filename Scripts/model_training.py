@@ -18,5 +18,6 @@ final_model.fit(
     X_train,
     y_train,
 )
-X_train.to_csv("/Users/nidhishgupta/Desktop/Dream11_Fantasy Team_Predictor/data/processed/training_data.csv")
-joblib.dump(final_model,"/Users/nidhishgupta/Desktop/Dream11_Fantasy Team_Predictor/models/point_predicter.pkl")
+X_train.to_csv("/Users/nidhishgupta/Desktop/Dream11_Fantasy Team_Predictor/data/processed/training_data_final.csv")
+joblib.dump(final_model,"/Users/nidhishgupta/Desktop/Dream11_Fantasy Team_Predictor/models/point_predicter_final.pkl")
+
