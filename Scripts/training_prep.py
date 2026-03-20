@@ -38,17 +38,13 @@ data['date'] = pd.to_datetime(data['date'])
 data['match_month'] = data['date'].dt.month
 data = data.drop(columns=['date'])
 data.to_csv("/Users/nidhishgupta/Desktop/Dream11_Fantasy Team_Predictor/data/processed/data_processed.csv",index = False)
-data['team_won_toss'] = (
-    data['team'] == data['toss_winner']
-).astype(int)
-data = data.drop(columns=['toss_winner','city'])
+data = data.drop(columns=['toss_winner','city','toss_decision'])
 data['recent_form'] = (data['last3_avg_points']*0.6 + data['last5_avg_points']*0.3 + data['last10_avg_points']*0.1)
 data['venue_form'] = data['venue_avg_points'] * data['recent_form']
 data.to_csv("/Users/nidhishgupta/Desktop/Dream11_Fantasy Team_Predictor/data/processed/historical_data.csv",index = False)
 one_hot_cols = [
     'team',
     'opponent',
-    'toss_decision',
     'stage',
     'pitch_type',
     'player_role'

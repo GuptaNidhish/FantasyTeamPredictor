@@ -4,9 +4,9 @@ import joblib
 from difflib import get_close_matches
 from datetime import datetime, timezone
 import requests
-data = pd.read_csv("/Users/nidhishgupta/Desktop/Dream11_Fantasy Team_Predictor/data/processed/full_req_data_final.csv")
-historical_data = pd.read_csv("/Users/nidhishgupta/Desktop/Dream11_Fantasy Team_Predictor/data/processed/historical_data_final.csv")
-model = joblib.load("/Users/nidhishgupta/Desktop/Dream11_Fantasy Team_Predictor/models/point_predicter.pkl")
+data = pd.read_csv("/Users/nidhishgupta/Desktop/Dream11_Fantasy Team_Predictor/data/processed/full_req_data_final_final.csv")
+historical_data = pd.read_csv("/Users/nidhishgupta/Desktop/Dream11_Fantasy Team_Predictor/data/processed/historical_data_final_final.csv")
+model = joblib.load("/Users/nidhishgupta/Desktop/Dream11_Fantasy Team_Predictor/models/point_predicter_final.pkl")
 API_KEY = "cb8a5495-0125-4122-9cef-e0993d41c40f"
 SERIES_ID = "87c62aac-bc3c-4738-ab93-19da0690488f"
 url = f"https://api.cricapi.com/v1/series_squad?apikey={API_KEY}&id={SERIES_ID}"
@@ -71,7 +71,7 @@ squad = team1_squad+team2_squad
 unique_player_list_from_df = historical_data['player'].unique()
 unique_players = list(unique_player_list_from_df)
 def map_player_name(name, unique_players):
-    match = get_close_matches(name, unique_players, n=1, cutoff=0.80)
+    match = get_close_matches(name, unique_players, n=1, cutoff=0.85)
     return match[0] if match else None
 
 
@@ -88,7 +88,7 @@ all_mapped = mapped_players_1 + mapped_players_2
 unique_venue_list_from_df = historical_data['venue'].unique()
 unique_venues = list(unique_venue_list_from_df)
 def map_venue_name(name):
-    match = get_close_matches(name, unique_venues, n=1, cutoff=0.5)
+    match = get_close_matches(name, unique_venues, n=1, cutoff=0.7)
     if match:
         return match[0]
     else:
@@ -300,3 +300,4 @@ print(team_count)
 print("\n👑 Captain:", captain)
 print("🤝 Vice-Captain:", vice_captain)   # Will add for 💰 Budget constraint, 2. Improve team selection (BIGGEST GAIN)
 #👉 Optimal Dream11 solver using ILP (guaranteed best team) later'''
+print(players_df)
