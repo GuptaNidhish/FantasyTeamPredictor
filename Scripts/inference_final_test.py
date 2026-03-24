@@ -298,6 +298,4 @@ print("\n🏢 Team Distribution:")
 print(team_count)
 
 print("\n👑 Captain:", captain)
-print("🤝 Vice-Captain:", vice_captain)   # Will add for 💰 Budget constraint, 2. Improve team selection (BIGGEST GAIN)
-#👉 Optimal Dream11 solver using ILP (guaranteed best team) later'''
-print(players_df)
+print("🤝 Vice-Captain:", vice_captain)

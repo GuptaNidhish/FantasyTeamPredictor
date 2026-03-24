@@ -26,6 +26,7 @@ data['last10_std_points'] = data['last10_std_points'].fillna(0)
 data['form_momentum'] = data['form_momentum'].fillna(0)
 data['bat_pos'] = data['bat_pos'].fillna(11)
 data['bat_pos_per_match'] = data['bat_pos_per_match'].fillna(11)
+data.to_csv("/Users/nidhishgupta/Desktop/Dream11_Fantasy Team_Predictor/data/processed/database_csv.csv",index = False)
 cols_to_drop = [
 'runs','balls','fours','sixes','strike_rate',
 'runs_conceded','balls_bowled','wickets','overs','economy',
