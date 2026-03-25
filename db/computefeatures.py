@@ -1,6 +1,6 @@
 import pandas as pd
-from db.initialization import SessionLocal
-from db.models import PlayerMatchStats, Match
+from .initialization import SessionLocal
+from .models import PlayerMatchStats, Match
 
 def get_latest_players_df(player_list):
     """
@@ -53,18 +53,32 @@ def get_latest_players_df(player_list):
 
     return df
 
-def compute_features(players_df, db_session=None):
+def compute_features(players_df, team1, team2, venue):
     """
-    Placeholder function to compute derived features from DB.
-    Later we will compute:
-    - last3_avg_points
-    - rolling_strike_rate
-    - rolling_wickets
-    - opponent_avg_points
-    - venue_avg_points
-    - contribution ratios, etc.
+    Full feature pipeline:
+    Applies all feature engineering steps in order.
     """
-    # For now, just return the base players_df
+
+    # ==============================
+    # Chunk 1 → Recent form stats
+    # ==============================
+    players_df = compute_chunk1(players_df)
+
+    # ==============================
+    # Chunk 2 → Contextual features
+    # ==============================
+    players_df = compute_chunk2(players_df, team1, team2, venue)
+
+    # ==============================
+    # Chunk 3 → Player behavior features
+    # ==============================
+    players_df = compute_chunk3(players_df)
+
+    # ==============================
+    # Chunk 4 → Advanced form features
+    # ==============================
+    players_df = compute_chunk4(players_df)
+
     return players_df
 def compute_chunk1(players_df):
     """
@@ -533,29 +547,3 @@ def compute_chunk4(players_df):
     )
 
     return players_df
-if __name__ == "__main__":
-    # Example usage:
-    # List of players in upcoming match
-    squad_players = ["Virat Kohli", "Rashid Khan", "MS Dhoni"]
-    team1 = "Royal Challengers Bengaluru"
-    team2 = "Sunrisers Hyderabad"
-    mapped_venue = "M Chinnaswamy Stadium"
-    # Step 1: get last played match for each player
-    players_df = get_latest_players_df(squad_players)
-    print("Base players_df:")
-    print(players_df.head())
-
-    # Step 2: compute derived features(chunk1)
-    players_df = compute_chunk1(players_df)
-    print("players_df with features:")
-    print(players_df.head())
-    # compute chunk 2
-    players_df = compute_chunk2(players_df, team1, team2, mapped_venue)
-    print(players_df[['player', 'opponent_avg_points', 'venue_avg_points', 'venue_run_factor']])
-    #Compute chunk 3
-    players_df = compute_chunk3(players_df)
-    print(players_df[['player', 'batting_contribution_ratio','bowling_contribution_ratio','boundary_percentage']])
-    #compute chunk 4
-    players_df = compute_chunk4(players_df)
-    print(players_df[['player','last10_std_points','player_consistency_index','form_momentum','recent_form','venue_form']])
-    print(players_df.isnull().sum())
