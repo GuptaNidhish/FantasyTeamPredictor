@@ -21,12 +21,10 @@ WICKETKEEPERS = set([
 
 
 # ✅ NEW: robust name mapping
-def map_player_name(name, squad):
-    match = get_close_matches(name, squad, n=1, cutoff=0.85)
-    return match[0] if match else None
-
-
 def ingest_match_data(api_response, session, team1_squad, team2_squad):
+    def map_player_name(name, squad):
+        match = get_close_matches(name, squad, n=1, cutoff=0.85)
+        return match[0] if match else None
     data = api_response['data']
 
     team1_squad_norm = set([p.lower().strip() for p in team1_squad])

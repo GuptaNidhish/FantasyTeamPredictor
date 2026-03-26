@@ -12,8 +12,8 @@ import requests
 # ✅ CREATE SINGLE SESSION
 session = SessionLocal()
 
-data = pd.read_csv("/Users/nidhishgupta/Desktop/Dream11_Fantasy Team_Predictor/data/processed/full_req_data_final_final.csv")
-historical_data = pd.read_csv("/Users/nidhishgupta/Desktop/Dream11_Fantasy Team_Predictor/data/processed/historical_data_final_final.csv")
+# data = pd.read_csv("/Users/nidhishgupta/Desktop/Dream11_Fantasy Team_Predictor/data/processed/full_req_data_final_final.csv")
+# historical_data = pd.read_csv("/Users/nidhishgupta/Desktop/Dream11_Fantasy Team_Predictor/data/processed/historical_data_final_final.csv")
 model = joblib.load("/Users/nidhishgupta/Desktop/Dream11_Fantasy Team_Predictor/models/point_predicter_final.pkl")
 
 API_KEY = "cb8a5495-0125-4122-9cef-e0993d41c40f"

@@ -1,8 +1,2 @@
-from db.initialization import engine
-
-try:
-    conn = engine.connect()
-    print("✅ Database connected successfully!")
-    conn.close()
-except Exception as e:
-    print("❌ Connection failed:", e)
+from run_inference import run_inference_pipeline
+run_inference_pipeline()
