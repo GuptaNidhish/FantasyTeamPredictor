@@ -9,13 +9,52 @@ def run_inference_pipeline():
     from sqlalchemy import func, case
     from db.computefeatures import get_latest_players_df, compute_features
     import requests
+    import json
+    import os
 
-    # ✅ CREATE SINGLE SESSION
+    # ================= FILE TO STORE ALL UPCOMING MATCHES =================
+    NEXT_MATCH_FILE = "next_match.json"
+
+    # ================= FIXED: ROBUST SAVE FUNCTION =================
+    def save_next_match(match):
+        """
+        Save the next upcoming match to next_match.json.
+        Appends to file if it exists and avoids duplicates.
+        """
+
+        # ✅ FIX: Handle existing file safely (list/dict/corrupt cases)
+        if os.path.exists(NEXT_MATCH_FILE):
+            with open(NEXT_MATCH_FILE, "r") as f:
+                try:
+                    existing = json.load(f)
+
+                    # ✅ FIX: Convert old dict format → list
+                    if isinstance(existing, dict):
+                        existing = [existing]
+
+                    # ✅ FIX: If somehow not list → reset
+                    if not isinstance(existing, list):
+                        existing = []
+
+                except json.JSONDecodeError:
+                    existing = []
+        else:
+            existing = []
+
+        # ✅ FIX: Safe duplicate check (avoid crash if bad data present)
+        if not any(isinstance(m, dict) and m.get('id') == match['id'] for m in existing):
+            existing.append(match)
+
+        # Save updated list
+        with open(NEXT_MATCH_FILE, "w") as f:
+            json.dump(existing, f, indent=2)
+
+    # ================= CREATE SINGLE SESSION =================
     session = SessionLocal()
 
     model = joblib.load("/Users/nidhishgupta/Desktop/Dream11_Fantasy Team_Predictor/models/point_predicter_final.pkl")
 
-    API_KEY = "cb8a5495-0125-4122-9cef-e0993d41c40f"
+    API_KEY = "fcc8ef0d-6e5c-462f-822c-d1bab2031cc6"
     SERIES_ID = "87c62aac-bc3c-4738-ab93-19da0690488f"
 
     # ================= API CALLS =================
@@ -48,6 +87,7 @@ def run_inference_pipeline():
         next_match = upcoming_matches[0]
         
         return {
+            "id": next_match['id'],
             "team1": next_match['teams'][0],
             "team2": next_match['teams'][1],
             "venue": next_match['venue'],
@@ -75,6 +115,9 @@ def run_inference_pipeline():
         print("❌ No upcoming matches found")
         session.close()
         return None
+
+    # ================= SAVE MATCH (APPEND + NO DUPLICATES) =================
+    save_next_match(next_match)
 
     team1 = next_match['team1']
     team2 = next_match['team2']
@@ -300,14 +343,12 @@ def run_inference_pipeline():
     team, role_count, team_count = build_valid_team(players_df)
     captain, vice_captain = choose_captains(team, players_df)
 
-    # ================= OUTPUT =================
     print("🏏 Final Team:", team)
     print("\n📊 Role Distribution:", role_count)
     print("\n🏢 Team Distribution:", team_count)
     print("\n👑 Captain:", captain)
     print("🤝 Vice-Captain:", vice_captain)
 
-    # ✅ CLOSE SESSION
     session.close()
 
     return {
