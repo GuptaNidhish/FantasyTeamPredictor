@@ -20,17 +20,18 @@ WICKETKEEPERS = set([
 ])
 
 
-# ✅ NEW: robust name mapping
 def ingest_match_data(api_response, session, team1_squad, team2_squad):
+
     def map_player_name(name, squad):
         match = get_close_matches(name, squad, n=1, cutoff=0.85)
         return match[0] if match else None
+
     data = api_response['data']
 
     team1_squad_norm = set([p.lower().strip() for p in team1_squad])
     team2_squad_norm = set([p.lower().strip() for p in team2_squad])
 
-    combined_squad = team1_squad_norm.union(team2_squad_norm)  # ✅ ADDED for reuse
+    combined_squad = team1_squad_norm.union(team2_squad_norm)
 
     team1, team2 = data['teams']
     venue = data['venue']
@@ -63,6 +64,12 @@ def ingest_match_data(api_response, session, team1_squad, team2_squad):
     session.add(match)
 
     # ------------------------------
+    # ✅ FIX: MOVE OUTSIDE LOOP (aggregate across innings)
+    # ------------------------------
+    player_dict = {}              # ✅ CHANGED: moved outside innings loop
+    lbw_bowled_tracker = {}      # ✅ CHANGED: moved outside innings loop
+
+    # ------------------------------
     # PROCESS SCORECARD
     # ------------------------------
     for inning_data in data['scorecard']:
@@ -71,9 +78,6 @@ def ingest_match_data(api_response, session, team1_squad, team2_squad):
         batting_team = inning_name.split(" Inning")[0]
         bowling_team = team2 if batting_team == team1 else team1
 
-        player_dict = {}
-        lbw_bowled_tracker = {}
-
         # ----------------------
         # ✅ BATTING
         # ----------------------
@@ -81,7 +85,6 @@ def ingest_match_data(api_response, session, team1_squad, team2_squad):
             name_raw = batter['batsman']['name']
             name = name_raw.lower().strip()
 
-            # ✅ CHANGED: apply mapping BEFORE using as key
             mapped_name = map_player_name(name, combined_squad) or name
 
             if mapped_name not in player_dict:
@@ -99,7 +102,7 @@ def ingest_match_data(api_response, session, team1_squad, team2_squad):
             stats['fours'] += batter.get('4s', 0)
             stats['sixes'] += batter.get('6s', 0)
 
-            # LBW/BOWLED tracking (WITH NAME MAPPING)
+            # LBW/BOWLED tracking
             dismissal_type = batter.get('dismissal', '').lower()
             if dismissal_type in ['lbw', 'bowled']:
                 bowler_name_raw = batter.get('bowler', {}).get('name')
@@ -120,7 +123,6 @@ def ingest_match_data(api_response, session, team1_squad, team2_squad):
             name_raw = bowler['bowler']['name']
             name = name_raw.lower().strip()
 
-            # ✅ CHANGED: apply mapping BEFORE using as key
             mapped_name = map_player_name(name, combined_squad) or name
 
             if mapped_name not in player_dict:
@@ -142,7 +144,6 @@ def ingest_match_data(api_response, session, team1_squad, team2_squad):
             stats['runs_conceded'] += bowler.get('r', 0)
             stats['wickets'] += bowler.get('w', 0)
 
-            # Maiden bonus
             maidens = bowler.get('m', 0)
             stats['maiden_bonus'] += maidens * 12
 
@@ -156,7 +157,6 @@ def ingest_match_data(api_response, session, team1_squad, team2_squad):
             name_raw = f['catcher']['name']
             name = name_raw.lower().strip()
 
-            # ✅ CHANGED: apply mapping BEFORE using as key
             mapped_name = map_player_name(name, combined_squad) or name
 
             if mapped_name not in player_dict:
@@ -176,119 +176,126 @@ def ingest_match_data(api_response, session, team1_squad, team2_squad):
                 catches * 8 + runouts * 6 + stumpings * 12
             )
 
-        # ----------------------
-        # ✅ FINAL INSERT
-        # ----------------------
-        for player, stats in player_dict.items():
+    # ----------------------
+    # ✅ FINAL INSERT (ONLY ONCE AFTER ALL INNINGS)
+    # ----------------------
+    for player, stats in player_dict.items():
 
-            # ✅ CHANGED: player is already mapped
-            mapped_player = player
+        mapped_player = player
 
-            if mapped_player in team1_squad_norm:
-                team = team1
-                opponent = team2
-            elif mapped_player in team2_squad_norm:
-                team = team2
-                opponent = team1
-            else:
-                print(f"⚠️ Player not found in squads: {player}")
-                continue
+        if mapped_player in team1_squad_norm:
+            team = team1
+            opponent = team2
+        elif mapped_player in team2_squad_norm:
+            team = team2
+            opponent = team1
+        else:
+            print(f"⚠️ Player not found in squads: {player}")
+            continue
 
-            match_count = session.query(func.count(PlayerMatchStats.match_id))\
-                .filter(PlayerMatchStats.player_name == mapped_player)\
-                .scalar()
+        # ✅ OPTIONAL SAFETY: avoid duplicate insert
+        existing = session.query(PlayerMatchStats)\
+            .filter(
+                PlayerMatchStats.match_id == match_id,
+                PlayerMatchStats.player_name == mapped_player
+            ).first()
 
-            # ------------------
-            # CALCULATIONS
-            # ------------------
-            runs = stats['runs']
-            balls = stats['balls']
-            fours = stats['fours']
-            sixes = stats['sixes']
-            wickets = stats['wickets']
-            balls_bowled = stats['balls_bowled']
-            runs_conceded = stats['runs_conceded']
+        if existing:
+            continue  # ✅ CHANGED: skip duplicates
 
-            batting_points = runs + fours * 1 + sixes * 2
-            if runs == 0 and balls > 0:
-                batting_points -= 2
+        match_count = session.query(func.count(PlayerMatchStats.match_id))\
+            .filter(PlayerMatchStats.player_name == mapped_player)\
+            .scalar()
 
-            if runs >= 100:
-                batting_bonus = 16
-            elif runs >= 50:
-                batting_bonus = 8
-            elif runs >= 30:
-                batting_bonus = 4
-            else:
-                batting_bonus = 0
+        # ------------------
+        # CALCULATIONS
+        # ------------------
+        runs = stats['runs']
+        balls = stats['balls']
+        fours = stats['fours']
+        sixes = stats['sixes']
+        wickets = stats['wickets']
+        balls_bowled = stats['balls_bowled']
+        runs_conceded = stats['runs_conceded']
 
-            sr_bonus = 0
-            if balls >= 10:
-                sr = (runs / balls) * 100 if balls > 0 else 0
-                if sr < 50: sr_bonus = -6
-                elif sr < 60: sr_bonus = -4
-                elif sr < 70: sr_bonus = -2
-                elif sr >= 170: sr_bonus = 6
-                elif sr >= 150: sr_bonus = 4
-                elif sr >= 130: sr_bonus = 2
+        batting_points = runs + fours * 1 + sixes * 2
+        if runs == 0 and balls > 0:
+            batting_points -= 2
 
-            bowling_points = wickets * 25
+        if runs >= 100:
+            batting_bonus = 16
+        elif runs >= 50:
+            batting_bonus = 8
+        elif runs >= 30:
+            batting_bonus = 4
+        else:
+            batting_bonus = 0
 
-            if wickets >= 5:
-                wicket_bonus = 16
-            elif wickets >= 4:
-                wicket_bonus = 8
-            elif wickets >= 3:
-                wicket_bonus = 4
-            else:
-                wicket_bonus = 0
+        sr_bonus = 0
+        if balls >= 10:
+            sr = (runs / balls) * 100 if balls > 0 else 0
+            if sr < 50: sr_bonus = -6
+            elif sr < 60: sr_bonus = -4
+            elif sr < 70: sr_bonus = -2
+            elif sr >= 170: sr_bonus = 6
+            elif sr >= 150: sr_bonus = 4
+            elif sr >= 130: sr_bonus = 2
 
-            eco_bonus = 0
-            if balls_bowled >= 12:
-                economy = (runs_conceded / balls_bowled) * 6
-                if economy < 5: eco_bonus = 6
-                elif economy < 6: eco_bonus = 4
-                elif economy < 7: eco_bonus = 2
-                elif economy > 12: eco_bonus = -6
-                elif economy > 11: eco_bonus = -4
-                elif economy >= 10: eco_bonus = -2
+        bowling_points = wickets * 25
 
-            lbw_bonus = lbw_bowled_tracker.get(mapped_player, 0)
-            lbw_bonus *= 8
-            maiden_bonus = stats['maiden_bonus']
-            fielding_points = stats['fielding_points']
+        if wickets >= 5:
+            wicket_bonus = 16
+        elif wickets >= 4:
+            wicket_bonus = 8
+        elif wickets >= 3:
+            wicket_bonus = 4
+        else:
+            wicket_bonus = 0
 
-            fantasy_points = (
-                batting_points + batting_bonus + sr_bonus +
-                bowling_points + wicket_bonus + eco_bonus +
-                lbw_bonus + maiden_bonus + fielding_points
-            )
+        eco_bonus = 0
+        if balls_bowled >= 12:
+            economy = (runs_conceded / balls_bowled) * 6
+            if economy < 5: eco_bonus = 6
+            elif economy < 6: eco_bonus = 4
+            elif economy < 7: eco_bonus = 2
+            elif economy > 12: eco_bonus = -6
+            elif economy > 11: eco_bonus = -4
+            elif economy >= 10: eco_bonus = -2
 
-            # ✅ WICKETKEEPER FLAG
-            is_wk = mapped_player in WICKETKEEPERS
+        lbw_bonus = lbw_bowled_tracker.get(mapped_player, 0) * 8
+        maiden_bonus = stats['maiden_bonus']
+        fielding_points = stats['fielding_points']
 
-            player_row = PlayerMatchStats(
-                match_id=match_id,
-                player_name=mapped_player,
-                team=team,
-                opponent=opponent,
-                runs=runs,
-                balls_played=balls,
-                fours=fours,
-                sixes=sixes,
-                balls_bowled=balls_bowled,
-                runs_conceded=runs_conceded,
-                wickets=wickets,
-                fielding_points=fielding_points,
-                lbw_bonus=lbw_bonus,
-                maiden_bonus=maiden_bonus,
-                fantasy_points=fantasy_points,
-                batting_position=stats['bat_pos'],
-                player_match_number=(match_count or 0) + 1,
-                is_wicketkeeper=is_wk
-            )
+        fantasy_points = (
+            batting_points + batting_bonus + sr_bonus +
+            bowling_points + wicket_bonus + eco_bonus +
+            lbw_bonus + maiden_bonus + fielding_points
+        )
 
-            session.add(player_row)
+        is_wk = mapped_player in WICKETKEEPERS
+
+        player_row = PlayerMatchStats(
+            match_id=match_id,
+            player_name=mapped_player,
+            team=team,
+            opponent=opponent,
+            runs=runs,
+            balls_played=balls,
+            fours=fours,
+            sixes=sixes,
+            balls_bowled=balls_bowled,
+            runs_conceded=runs_conceded,
+            wickets=wickets,
+            fielding_points=fielding_points,
+            lbw_bonus=lbw_bonus,
+            maiden_bonus=maiden_bonus,
+            fantasy_points=fantasy_points,
+            batting_position=stats['bat_pos'],
+            player_match_number=(match_count or 0) + 1,
+            is_wicketkeeper=is_wk
+        )
+
+        session.add(player_row)
 
     session.commit()
     print(f"✅ Match ingested with match_id: {match_id}")
