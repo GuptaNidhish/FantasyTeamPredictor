@@ -547,3 +547,191 @@ def compute_chunk4(players_df):
     )
 
     return players_df
+def featureFor_retraining(df):
+    import pandas as pd
+    import numpy as np
+
+    df = df.copy()
+
+    # ================= SORT =================
+    df = df.sort_values(['player', 'player_match_number'])
+
+    # ================= BASIC SAFETY =================
+    df['balls_played'] = df['balls_played'].replace(0, np.nan)
+    df['balls_bowled'] = df['balls_bowled'].replace(0, np.nan)
+
+    # ================= CHUNK 1 (FIXED) =================
+    df['strike_rate'] = df['runs'] / df['balls_played'] * 100
+
+    df['last3_avg_points'] = (
+        df.groupby('player')['fantasy_points']
+        .rolling(3, min_periods=1)
+        .mean()
+        .shift(1)  # ✅ FIX: prevent leakage
+        .reset_index(level=0, drop=True)
+    )
+
+    df['rolling_strike_rate'] = (
+        df.groupby('player')['strike_rate']
+        .rolling(5, min_periods=1)
+        .mean()
+        .shift(1)
+        .reset_index(level=0, drop=True)
+    )
+
+    df['rolling_wickets'] = (
+        df.groupby('player')['wickets']
+        .rolling(5, min_periods=1)
+        .mean()
+        .shift(1)
+        .reset_index(level=0, drop=True)
+    )
+
+    # ================= CHUNK 2 (SIMPLIFIED FOR TRAINING) =================
+    # opponent_avg_points
+    df['opponent_avg_points'] = (
+        df.groupby(['player', 'opponent'])['fantasy_points']
+        .transform(lambda x: x.shift(1).expanding().mean())
+    )
+
+    # venue_avg_points
+    df['venue_avg_points'] = (
+        df.groupby(['player', 'venue'])['fantasy_points']
+        .transform(lambda x: x.shift(1).expanding().mean())
+    )
+
+    # venue_run_factor
+    match_runs = (
+        df.groupby(['match_id', 'venue'])['runs']
+        .sum()
+        .reset_index()
+    )
+
+    venue_avg = match_runs.groupby('venue')['runs'].mean()
+    overall_avg = match_runs['runs'].mean()
+
+    venue_factor_map = (venue_avg / overall_avg).to_dict()
+    df['venue_run_factor'] = df['venue'].map(venue_factor_map).fillna(1.0)
+
+    # ================= CHUNK 3 =================
+    df['batting_points'] = (
+        df['runs'] + df['fours'] + df['sixes'] * 2
+    )
+
+    duck_mask = (df['runs'] == 0) & (df['balls_played'] > 0)
+    df.loc[duck_mask, 'batting_points'] -= 2
+
+    df['batting_bonus'] = 0
+    df.loc[df['runs'] >= 30, 'batting_bonus'] = 4
+    df.loc[df['runs'] >= 50, 'batting_bonus'] = 8
+    df.loc[df['runs'] >= 100, 'batting_bonus'] = 16
+
+    df['sr_bonus'] = 0
+    mask = df['balls_played'] >= 10
+
+    df.loc[mask & (df['strike_rate'] < 50), 'sr_bonus'] = -6
+    df.loc[mask & (df['strike_rate'].between(50, 59.99)), 'sr_bonus'] = -4
+    df.loc[mask & (df['strike_rate'].between(60, 69.99)), 'sr_bonus'] = -2
+    df.loc[mask & (df['strike_rate'].between(130, 149.99)), 'sr_bonus'] = 2
+    df.loc[mask & (df['strike_rate'].between(150, 169.99)), 'sr_bonus'] = 4
+    df.loc[mask & (df['strike_rate'] >= 170), 'sr_bonus'] = 6
+
+    df['bowling_points'] = df['wickets'] * 25
+
+    df['wicket_bonus'] = 0
+    df.loc[df['wickets'] >= 3, 'wicket_bonus'] = 4
+    df.loc[df['wickets'] >= 4, 'wicket_bonus'] = 8
+    df.loc[df['wickets'] >= 5, 'wicket_bonus'] = 16
+
+    df['economy'] = df['runs_conceded'] / df['balls_bowled'] * 6
+
+    df['eco_bonus'] = 0
+    mask = df['balls_bowled'] >= 12
+
+    df.loc[mask & (df['economy'] < 5), 'eco_bonus'] = 6
+    df.loc[mask & (df['economy'].between(5, 5.99)), 'eco_bonus'] = 4
+    df.loc[mask & (df['economy'].between(6, 6.99)), 'eco_bonus'] = 2
+    df.loc[mask & (df['economy'].between(10, 11)), 'eco_bonus'] = -2
+    df.loc[mask & (df['economy'].between(11.01, 12)), 'eco_bonus'] = -4
+    df.loc[mask & (df['economy'] > 12), 'eco_bonus'] = -6
+
+    denominator = df['fantasy_points'] - df['fielding_points']
+    denominator = denominator.replace(0, 1)
+
+    df['batting_contribution_ratio'] = (
+        df['batting_points'] + df['batting_bonus'] + df['sr_bonus']
+    ) / denominator
+
+    df['bowling_contribution_ratio'] = (
+        df['bowling_points'] + df['eco_bonus'] + df['wicket_bonus']
+    ) / denominator
+
+    df['boundary_percentage'] = (
+        (df['fours'] * 4 + df['sixes'] * 6) / df['runs']
+    ).fillna(0)
+
+    for col in [
+        'batting_contribution_ratio',
+        'bowling_contribution_ratio',
+        'boundary_percentage'
+    ]:
+        df[col] = (
+            df.groupby('player')[col]
+            .rolling(3, min_periods=1)
+            .mean()
+            .shift(1)
+            .reset_index(level=0, drop=True)
+        )
+
+    # ================= CHUNK 4 =================
+    df['last3_avg'] = (
+        df.groupby('player')['fantasy_points']
+        .rolling(3, min_periods=1)
+        .mean()
+        .shift(1)
+        .reset_index(level=0, drop=True)
+    )
+
+    df['last5_avg'] = (
+        df.groupby('player')['fantasy_points']
+        .rolling(5, min_periods=1)
+        .mean()
+        .shift(1)
+        .reset_index(level=0, drop=True)
+    )
+
+    df['last10_avg'] = (
+        df.groupby('player')['fantasy_points']
+        .rolling(10, min_periods=1)
+        .mean()
+        .shift(1)
+        .reset_index(level=0, drop=True)
+    )
+
+    df['last10_std_points'] = (
+        df.groupby('player')['fantasy_points']
+        .rolling(10, min_periods=1)
+        .std()
+        .shift(1)
+        .reset_index(level=0, drop=True)
+        .fillna(0)
+    )
+
+    df['player_consistency_index'] = (
+        df['last10_avg'] / (df['last10_std_points'] + 1e-5)
+    )
+
+    df['form_momentum'] = df['last3_avg'] - df['last10_avg']
+
+    df['recent_form'] = (
+        0.6 * df['last3_avg'] +
+        0.3 * df['last5_avg'] +
+        0.1 * df['last10_avg']
+    )
+
+    df['venue_form'] = df['venue_avg_points'] * df['recent_form']
+
+    # ================= FINAL CLEAN =================
+    df = df.fillna(0)
+
+    return df

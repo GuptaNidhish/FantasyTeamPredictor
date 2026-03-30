@@ -1,6 +1,7 @@
 import streamlit as st
 from run_inference import run_inference_pipeline
 from ingestion_service import ingest_latest_completed_match
+import json  # ✅ ADDED: to read processed_matches.json
 
 # ================= UI CONFIG =================
 st.set_page_config(
@@ -54,3 +55,19 @@ if logs:
         print(log)
 else:
     print("⚠️ Ingestion function ran but returned no logs")
+
+# ================= RETRAIN TRIGGER =================
+# ✅ ADDED: Check processed_matches.json and trigger retraining
+try:
+    with open("processed_matches.json", "r") as f:
+        processed_matches = json.load(f)
+
+    if isinstance(processed_matches, list) and len(processed_matches) % 10 == 0:
+        # ✅ ADDED: Call retrain_model when count is multiple of 10
+        retrain_model()  # function will be implemented later
+        print("🔄 Retraining model triggered")
+
+except FileNotFoundError:
+    print("⚠️ processed_matches.json not found")
+except Exception as e:
+    print(f"⚠️ Error while checking retrain condition: {e}")
