@@ -85,29 +85,45 @@ def run_inference_pipeline():
         )
         
         next_match = upcoming_matches[0]
-        
+        img1 = ""
+        img2 = ""
+        if(next_match['teamInfo'][0]['name'] == next_match['teams'][0]):
+            img1 = next_match['teamInfo'][0]['img']
+            img2 = next_match['teamInfo'][1]['img']
+        elif(next_match['teamInfo'][0]['name'] == next_match['teams'][1]):
+            img2 = next_match['teamInfo'][0]['img']
+            img1 = next_match['teamInfo'][1]['img']
         return {
             "id": next_match['id'],
             "team1": next_match['teams'][0],
             "team2": next_match['teams'][1],
             "venue": next_match['venue'],
-            "date": next_match['dateTimeGMT']
+            "date": next_match['dateTimeGMT'],
+            "img1": img1,
+            "img2": img2
         }
 
     def get_team_squads(data, team1, team2):
         team1_squad = []
         team2_squad = []
+        playerttoimg = {}
 
         for team in data['data']:
-            team_name = team['teamName']
+            team_name = team['teamName'].lower()
 
-            if team_name.lower() == team1.lower():
-                team1_squad = [player['name'] for player in team['players']]
+            if team_name == team1.lower():
+                for player in team['players']:
+                    name = player['name']
+                    team1_squad.append(name)
+                    playerttoimg[name] = player.get('playerImg')  # safe access
 
-            elif team_name.lower() == team2.lower():
-                team2_squad = [player['name'] for player in team['players']]
+            elif team_name == team2.lower():
+                for player in team['players']:
+                    name = player['name']
+                    team2_squad.append(name)
+                    playerttoimg[name] = player.get('playerImg')  # safe access
 
-        return team1_squad, team2_squad
+        return team1_squad, team2_squad, playerttoimg
 
     next_match = get_next_match(data_api_2)
 
@@ -123,7 +139,7 @@ def run_inference_pipeline():
     team2 = next_match['team2']
     venue = next_match['venue']
 
-    team1_squad, team2_squad = get_team_squads(data_api_1, team1, team2)
+    team1_squad, team2_squad,playertoimg = get_team_squads(data_api_1, team1, team2)
 
     # ================= PLAYER MAPPING =================
     unique_players = session.query(
@@ -355,5 +371,10 @@ def run_inference_pipeline():
         "team": team,
         "captain": captain,
         "vice_captain": vice_captain,
-        "players_df": players_df
+        "players_df": players_df,
+        "team1_name":next_match['team1'],
+        "team2_name":next_match['team2'],
+        "team1_img": next_match['img1'],
+        "team2_img": next_match['img2'],
+        "playertoimg":playertoimg
     }

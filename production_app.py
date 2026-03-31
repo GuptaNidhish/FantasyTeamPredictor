@@ -2,18 +2,13 @@ import streamlit as st
 from run_inference import run_inference_pipeline
 from ingestion_service import ingest_latest_completed_match
 from retraining import retrain_model
-import json  # ✅ ADDED: to read processed_matches.json
-import os    # ✅ ADDED: for retrain log file handling
+import json
+import os
 
 # ================= RETRAIN LOG HELPERS =================
-RETRAIN_LOG_FILE = "last_retrain.json"  # ✅ ADDED
+RETRAIN_LOG_FILE = "last_retrain.json"
 
 def should_retrain(current_count):
-    """
-    ✅ ADDED:
-    Ensures retraining happens ONLY once at 10, 20, 30... matches
-    even if Streamlit reruns multiple times
-    """
     try:
         if os.path.exists(RETRAIN_LOG_FILE):
             with open(RETRAIN_LOG_FILE, "r") as f:
@@ -43,44 +38,93 @@ st.title("🏏 Dream11 Fantasy Team Predictor")
 st.markdown("AI-powered match predictions")
 
 # ================= RUN INFERENCE =================
-st.subheader("🔮 Predicted Team")
 with st.spinner("Running AI model..."):
     result = run_inference_pipeline()
 
 if result:
     team1_name = result['team1_name']
-    team1_img = result['team1_img']
     team2_name = result['team2_name']
-    team2_img = result['team2_img']
+
+    team1_img = result.get('team1_img')
+    team2_img = result.get('team2_img')
+
+    # (Note: resizing via URL may not work, Streamlit width controls size)
+    if team1_img:
+        team1_img = team1_img.replace("w=48", "w=500")
+    if team2_img:
+        team2_img = team2_img.replace("w=48", "w=500")
+
     team = result['team']
     captain = result['captain']
     vice_captain = result['vice_captain']
+    player_to_img = result.get('playertoimg', {})  # ✅ NEW
 
+    # ================= MATCH HEADER =================
+    st.subheader("🏟️ Match")
+
+    col1, col2, col3 = st.columns([1, 1, 1])
+
+    with col1:
+        if team1_img:
+            st.image(team1_img, width=220)
+        st.markdown(f"**{team1_name}**")
+
+    with col2:
+        st.write("")
+        st.write("")
+        st.markdown("## VS")
+
+    with col3:
+        if team2_img:
+            st.image(team2_img, width=220)
+        st.markdown(f"**{team2_name}**")
+
+    st.divider()
+
+    # ================= PREDICTION HEADER =================
+    st.subheader("🔮 Predicted Team")
     st.success("✅ Prediction Ready!")
 
-    # 👑 Captain / VC
+    # ================= CAPTAIN / VC =================
     col1, col2 = st.columns(2)
+
     with col1:
-        st.markdown("### 👑 Captain")
-        st.info(captain)
+        st.subheader("👑 Captain")
+        st.success(captain)
+
     with col2:
-        st.markdown("### 🤝 Vice Captain")
+        st.subheader("🤝 Vice Captain")
         st.info(vice_captain)
 
-    # 🏏 Playing XI
-    st.markdown("### 🏏 Playing XI")
+    st.divider()
+
+    # ================= PLAYING XI WITH IMAGES =================
+    st.subheader("🏏 Playing XI")
+
     for player in team:
-        if player == captain:
-            st.write(f"👑 {player}")
-        elif player == vice_captain:
-            st.write(f"🤝 {player}")
-        else:
-            st.write(f"• {player}")
+        col1, col2 = st.columns([1, 5])
+
+        img_url = player_to_img.get(player)
+
+        with col1:
+            if img_url:
+                st.image(img_url, width=50)
+            else:
+                st.image("https://via.placeholder.com/50", width=50)
+
+        with col2:
+            if player == captain:
+                st.markdown(f"👑 **{player} (C)**")
+            elif player == vice_captain:
+                st.markdown(f"🤝 **{player} (VC)**")
+            else:
+                st.markdown(f"• {player}")
+
 else:
     st.error("❌ Prediction failed")
 
 # ================= RUN INGESTION =================
-logs = ingest_latest_completed_match()  # ✅ handles next_match.json internally
+logs = ingest_latest_completed_match()
 if logs:
     print("\n📥 Ingestion logs:")
     for log in logs:
@@ -89,7 +133,6 @@ else:
     print("⚠️ Ingestion function ran but returned no logs")
 
 # ================= RETRAIN TRIGGER =================
-# ✅ UPDATED: Safe retraining logic (only once per 10 matches)
 try:
     with open("processed_matches.json", "r") as f:
         processed_matches = json.load(f)
@@ -97,7 +140,7 @@ try:
     if isinstance(processed_matches, list):
         count = len(processed_matches)
 
-        if should_retrain(count):  # ✅ CHANGED
+        if should_retrain(count):
             retrain_model()
             print(f"🔄 Retraining model triggered at {count} matches")
         else:
