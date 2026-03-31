@@ -1,7 +1,35 @@
 import streamlit as st
 from run_inference import run_inference_pipeline
 from ingestion_service import ingest_latest_completed_match
+from retraining import retrain_model
 import json  # ✅ ADDED: to read processed_matches.json
+import os    # ✅ ADDED: for retrain log file handling
+
+# ================= RETRAIN LOG HELPERS =================
+RETRAIN_LOG_FILE = "last_retrain.json"  # ✅ ADDED
+
+def should_retrain(current_count):
+    """
+    ✅ ADDED:
+    Ensures retraining happens ONLY once at 10, 20, 30... matches
+    even if Streamlit reruns multiple times
+    """
+    try:
+        if os.path.exists(RETRAIN_LOG_FILE):
+            with open(RETRAIN_LOG_FILE, "r") as f:
+                data = json.load(f)
+                last_count = data.get("last_retrain_count", 0)
+        else:
+            last_count = 0
+    except:
+        last_count = 0
+
+    if current_count % 10 == 0 and current_count != last_count:
+        with open(RETRAIN_LOG_FILE, "w") as f:
+            json.dump({"last_retrain_count": current_count}, f)
+        return True
+
+    return False
 
 # ================= UI CONFIG =================
 st.set_page_config(
@@ -57,15 +85,20 @@ else:
     print("⚠️ Ingestion function ran but returned no logs")
 
 # ================= RETRAIN TRIGGER =================
-# ✅ ADDED: Check processed_matches.json and trigger retraining
+# ✅ UPDATED: Safe retraining logic (only once per 10 matches)
 try:
     with open("processed_matches.json", "r") as f:
         processed_matches = json.load(f)
 
-    if isinstance(processed_matches, list) and len(processed_matches) % 10 == 0:
-        # ✅ ADDED: Call retrain_model when count is multiple of 10
-        retrain_model()  # function will be implemented later
-        print("🔄 Retraining model triggered")
+    if isinstance(processed_matches, list):
+        count = len(processed_matches)
+
+        if should_retrain(count):  # ✅ CHANGED
+            retrain_model()
+            print(f"🔄 Retraining model triggered at {count} matches")
+        else:
+            next_trigger = ((count // 10) + 1) * 10
+            print(f"ℹ️ Current matches: {count} | Next retrain at {next_trigger}")
 
 except FileNotFoundError:
     print("⚠️ processed_matches.json not found")
