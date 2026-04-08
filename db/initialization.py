@@ -1,14 +1,33 @@
+import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 
-# 🔑 Replace with your actual credentials
-DATABASE_URL = "postgresql://postgres:Jaibaba001#@db.mpyitncpkyunkqccefit.supabase.co:5432/postgres?sslmode=require"
+# Load .env for local
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except:
+    pass
 
-# Engine (core connection)
-engine = create_engine(DATABASE_URL)
+# Try local .env first
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-# Session (used to talk to DB)
+# If not found, try Streamlit secrets (for deployment)
+if not DATABASE_URL:
+    try:
+        import streamlit as st
+        DATABASE_URL = st.secrets["DATABASE_URL"]
+    except:
+        raise Exception("DATABASE_URL not found in environment variables or Streamlit secrets")
+
+# Engine
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True
+)
+
+# Session
 SessionLocal = sessionmaker(bind=engine)
 
-# Base class (all ORM models inherit from this)
+# Base
 Base = declarative_base()
