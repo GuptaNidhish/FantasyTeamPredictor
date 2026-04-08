@@ -11,10 +11,31 @@ def run_inference_pipeline():
     import requests
     import json
     import os
-
+    import pickle
     # ================= FILE TO STORE ALL UPCOMING MATCHES =================
     NEXT_MATCH_FILE = "next_match.json"
-
+    MODEL_COLS_URL = "https://mpyitncpkyunkqccefit.supabase.co/storage/v1/object/public/Models/model_cols.pkl"
+    MODEL_COLS_PATH = "modelcols.pkl"
+    MODEL_URL = "https://mpyitncpkyunkqccefit.supabase.co/storage/v1/object/public/Models/point_predicter_final.pkl"
+    MODEL_PATH = "model.pkl"
+    def download_model_cols():
+        print("Downloading model cols from Supabase...")
+        response = requests.get(MODEL_COLS_URL)
+        if response.status_code == 200:
+            with open(MODEL_COLS_PATH, "wb") as f:
+                f.write(response.content)
+            print("Model cols downloaded successfully!")
+        else:
+            raise Exception("Failed to download model cols")
+    def download_model():
+        print("Downloading model from Supabase...")
+        response = requests.get(MODEL_URL)
+        if response.status_code == 200:
+            with open(MODEL_PATH, "wb") as f:
+                f.write(response.content)
+            print("Model downloaded successfully!")
+        else:
+            raise Exception("Failed to download model")
     # ================= FIXED: ROBUST SAVE FUNCTION =================
     def save_next_match(match):
         """
@@ -52,7 +73,13 @@ def run_inference_pipeline():
     # ================= CREATE SINGLE SESSION =================
     session = SessionLocal()
 
-    model = joblib.load("/Users/nidhishgupta/Desktop/Dream11_Fantasy Team_Predictor/models/point_predicter_final.pkl")
+    if not os.path.exists(MODEL_PATH):
+        download_model()
+
+    # Now load model
+
+    with open(MODEL_PATH, "rb") as f:
+        model = pickle.load(f)
 
     API_KEY = "fcc8ef0d-6e5c-462f-822c-d1bab2031cc6"
     SERIES_ID = "87c62aac-bc3c-4738-ab93-19da0690488f"
@@ -215,9 +242,13 @@ def run_inference_pipeline():
 
     # ================= ENCODING =================
     players_df_encoded = pd.get_dummies(players_df, columns=['team', 'opponent', 'pitch_type'])
+    if not os.path.exists(MODEL_COLS_PATH):
+        download_model_cols()
 
-    model_columns = joblib.load("/Users/nidhishgupta/Desktop/Dream11_Fantasy Team_Predictor/models/model_cols.pkl")
+    # Now load model cols
 
+    with open(MODEL_COLS_PATH, "rb") as f:
+        model_columns = pickle.load(f)
     for col in model_columns:
         if col not in players_df_encoded.columns:
             players_df_encoded[col] = 0
