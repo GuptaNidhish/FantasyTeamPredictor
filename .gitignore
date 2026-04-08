@@ -8,3 +8,4 @@ models/
 encoders/
 .ipynb_checkpoints/
 *.json
+*.pkl
