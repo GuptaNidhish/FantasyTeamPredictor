@@ -73,7 +73,7 @@ def run_inference_pipeline():
     with open(MODEL_PATH, "rb") as f:
         model = pickle.load(f)
 
-    API_KEY = "fcc8ef0d-6e5c-462f-822c-d1bab2031cc6"
+    API_KEY = "cb8a5495-0125-4122-9cef-e0993d41c40f"
     SERIES_ID = "87c62aac-bc3c-4738-ab93-19da0690488f"
 
     # ================= API CALLS =================
