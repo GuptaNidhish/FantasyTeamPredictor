@@ -6,13 +6,19 @@ def retrain_model():
     from sqlalchemy.orm import Session
     from db.initialization import SessionLocal
     from db.models import PlayerMatchStats, Match
-    from db.computefeatures import featureFor_retraining  # ✅ SAME as inference
+    from db.computefeatures import featureFor_retraining
     from lightgbm import LGBMRegressor
     import io
     import joblib
     from supabase import create_client
     import os
+    import requests
+    import pickle
+
     session: Session = SessionLocal()
+
+    MODEL_COLS_URL = "https://mpyitncpkyunkqccefit.supabase.co/storage/v1/object/public/Models/model_cols.pkl"
+    MODEL_COLS_PATH = "modelcols.pkl"
 
     try:
         # ================= FETCH DATA =================
@@ -28,44 +34,31 @@ def retrain_model():
             data.append({
                 "player": r.player_name,
                 "match_id": r.match_id,
-
-                # Context (✅ already available in your schema)
                 "team": r.team,
                 "opponent": r.opponent,
                 "player_role_wicketkeeper": r.is_wicketkeeper,
-
-                # Batting
                 "runs": r.runs,
                 "balls_played": r.balls_played,
                 "fours": r.fours,
                 "sixes": r.sixes,
-
-                # Bowling
                 "balls_bowled": r.balls_bowled,
                 "runs_conceded": r.runs_conceded,
                 "wickets": r.wickets,
-                "maidens": r.maiden_bonus,  # mapped
-
-                # Fielding
+                "maidens": r.maiden_bonus,
                 "fielding_points": r.fielding_points,
-
-                # Context features
                 "batting_position": r.batting_position,
                 "player_match_number": r.player_match_number,
-
-                # TARGET
                 "fantasy_points": r.fantasy_points
             })
 
         df = pd.DataFrame(data)
-
         print(f"📊 Total rows fetched: {len(df)}")
 
         # ================= ADD MATCH CONTEXT =================
         matches = session.query(Match).all()
 
         match_map = {
-            m.id: {
+            m.match_id: {
                 "venue": m.venue,
                 "pitch_type": m.pitch_type
             }
@@ -74,17 +67,36 @@ def retrain_model():
 
         df["venue"] = df["match_id"].map(lambda x: match_map.get(x, {}).get("venue"))
         df["pitch_type"] = df["match_id"].map(lambda x: match_map.get(x, {}).get("pitch_type"))
+
+        # ✅ Handle missing values
+        df["venue"] = df["venue"].fillna("Unknown")
+        df["pitch_type"] = df["pitch_type"].fillna("Unknown")
+
         # ================= FEATURE ENGINEERING =================
         df = featureFor_retraining(df)
+
         # ================= ENCODING =================
         df_encoded = pd.get_dummies(
             df,
             columns=['team', 'opponent', 'pitch_type']
         )
 
-        # ================= ALIGN WITH MODEL COLS =================
-        model_cols_path = "https://mpyitncpkyunkqccefit.supabase.co/storage/v1/object/public/Models/model_cols.pkl"
-        model_columns = joblib.load(model_cols_path)
+        # ================= MODEL COLS =================
+        def download_model_cols():
+            print("Downloading model cols from Supabase...")
+            response = requests.get(MODEL_COLS_URL)
+            if response.status_code == 200:
+                with open(MODEL_COLS_PATH, "wb") as f:
+                    f.write(response.content)
+                print("Model cols downloaded successfully!")
+            else:
+                raise Exception("Failed to download model cols")
+
+        if not os.path.exists(MODEL_COLS_PATH):
+            download_model_cols()
+
+        with open(MODEL_COLS_PATH, "rb") as f:
+            model_columns = pickle.load(f)
 
         for col in model_columns:
             if col not in df_encoded.columns:
@@ -96,37 +108,44 @@ def retrain_model():
         df_encoded = df_encoded.apply(pd.to_numeric, errors='coerce').fillna(0)
 
         # ================= TARGET =================
-        TARGET = "fantasy_points"
-
         X = df_encoded
-        y = df[TARGET]
+        y = df["fantasy_points"]
+
         # ================= MODEL =================
-        best_params = {'subsample': 0.9, 'num_leaves': 135, 'min_child_samples': 5, 'max_depth': 10, 'learning_rate': 0.02, 'colsample_bytree': 0.6}
+        best_params = {
+            'subsample': 0.9,
+            'num_leaves': 135,
+            'min_child_samples': 5,
+            'max_depth': 10,
+            'learning_rate': 0.02,
+            'colsample_bytree': 0.6
+        }
+
         final_model = LGBMRegressor(
             n_estimators=600,
             random_state=42,
-            reg_alpha = 0.1,
-            reg_lambda = 1,
+            reg_alpha=0.1,
+            reg_lambda=1,
             **best_params
-        )   
+        )
 
         final_model.fit(X, y)
         print("Model trained")
 
-        # ================= SAVE MODEL =================
+        # ================= SAVE MODEL TO SUPABASE =================
         url = "https://mpyitncpkyunkqccefit.supabase.co"
         key = os.getenv("SUPABASE_KEY")
 
         supabase = create_client(url, key)
 
+        # ✅ Use BytesIO correctly
         buffer = io.BytesIO()
         joblib.dump(final_model, buffer)
-        buffer.seek(0)
 
         supabase.storage.from_("Models").upload(
             "point_predicter_final.pkl",
-            buffer,
-            {"upsert": True}   # 🔥 this overwrites existing file
+            buffer.getvalue(),   # ✅ DEPLOYMENT SAFE
+            {"upsert": "true"}
         )
 
         print("💾 Model saved successfully")

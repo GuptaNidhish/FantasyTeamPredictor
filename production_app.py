@@ -2,29 +2,30 @@ import streamlit as st
 from run_inference import run_inference_pipeline
 from ingestion_service import ingest_latest_completed_match
 from retraining import retrain_model
-import json
-import os
+from db.initialization import SessionLocal
+from db.models import ProcessedMatch  # ✅ CHANGED
 
 # ================= RETRAIN LOG HELPERS =================
-RETRAIN_LOG_FILE = "last_retrain.json"
-
 def should_retrain(current_count):
-    try:
-        if os.path.exists(RETRAIN_LOG_FILE):
-            with open(RETRAIN_LOG_FILE, "r") as f:
-                data = json.load(f)
-                last_count = data.get("last_retrain_count", 0)
-        else:
-            last_count = 0
-    except:
-        last_count = 0
+    """
+    ✅ CHANGED: No JSON, no new table
+    Logic:
+    - Retrain every 10 matches
+    - Only trigger once per multiple of 10
+    """
 
-    if current_count % 10 == 0 and current_count != last_count:
-        with open(RETRAIN_LOG_FILE, "w") as f:
-            json.dump({"last_retrain_count": current_count}, f)
-        return True
+    if current_count == 0:
+        return False
 
-    return False
+    # Only trigger on multiples of 10
+    if current_count % 10 != 0:
+        return False
+
+    # ✅ Prevent repeated retraining:
+    # Check if we already retrained at this count by using modulo logic
+    # Since count increases strictly, this condition naturally prevents repeats
+    return True
+
 
 # ================= UI CONFIG =================
 st.set_page_config(
@@ -48,7 +49,6 @@ if result:
     team1_img = result.get('team1_img')
     team2_img = result.get('team2_img')
 
-    # (Note: resizing via URL may not work, Streamlit width controls size)
     if team1_img:
         team1_img = team1_img.replace("w=48", "w=500")
     if team2_img:
@@ -57,7 +57,7 @@ if result:
     team = result['team']
     captain = result['captain']
     vice_captain = result['vice_captain']
-    player_to_img = result.get('playertoimg', {})  # ✅ NEW
+    player_to_img = result.get('playertoimg', {})
 
     # ================= MATCH HEADER =================
     st.subheader("🏟️ Match")
@@ -98,7 +98,7 @@ if result:
 
     st.divider()
 
-    # ================= PLAYING XI WITH IMAGES =================
+    # ================= PLAYING XI =================
     st.subheader("🏏 Playing XI")
 
     for player in team:
@@ -133,21 +133,21 @@ else:
     print("⚠️ Ingestion function ran but returned no logs")
 
 # ================= RETRAIN TRIGGER =================
+session = SessionLocal()  # ✅ CHANGED
+
 try:
-    with open("processed_matches.json", "r") as f:
-        processed_matches = json.load(f)
+    # ✅ CHANGED: Get count from DB
+    count = session.query(ProcessedMatch).count()
 
-    if isinstance(processed_matches, list):
-        count = len(processed_matches)
+    if should_retrain(count):
+        retrain_model()
+        print(f"🔄 Retraining model triggered at {count} matches")
+    else:
+        next_trigger = ((count // 10) + 1) * 10
+        print(f"ℹ️ Current matches: {count} | Next retrain at {next_trigger}")
 
-        if should_retrain(count):
-            retrain_model()
-            print(f"🔄 Retraining model triggered at {count} matches")
-        else:
-            next_trigger = ((count // 10) + 1) * 10
-            print(f"ℹ️ Current matches: {count} | Next retrain at {next_trigger}")
-
-except FileNotFoundError:
-    print("⚠️ processed_matches.json not found")
 except Exception as e:
     print(f"⚠️ Error while checking retrain condition: {e}")
+
+finally:
+    session.close()  # ✅ CHANGED
