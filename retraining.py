@@ -3,13 +3,15 @@ def retrain_model():
 
     import pandas as pd
     import numpy as np
-    import joblib
     from sqlalchemy.orm import Session
     from db.initialization import SessionLocal
     from db.models import PlayerMatchStats, Match
     from db.computefeatures import featureFor_retraining  # ✅ SAME as inference
     from lightgbm import LGBMRegressor
-
+    import io
+    import joblib
+    from supabase import create_client
+    import os
     session: Session = SessionLocal()
 
     try:
@@ -81,7 +83,7 @@ def retrain_model():
         )
 
         # ================= ALIGN WITH MODEL COLS =================
-        model_cols_path = "/Users/nidhishgupta/Desktop/Dream11_Fantasy Team_Predictor/models/model_cols.pkl"
+        model_cols_path = "https://mpyitncpkyunkqccefit.supabase.co/storage/v1/object/public/Models/model_cols.pkl"
         model_columns = joblib.load(model_cols_path)
 
         for col in model_columns:
@@ -112,8 +114,20 @@ def retrain_model():
         print("Model trained")
 
         # ================= SAVE MODEL =================
-        model_path = "/Users/nidhishgupta/Desktop/Dream11_Fantasy Team_Predictor/models/point_predicter_final.pkl"
-        joblib.dump(final_model, model_path)
+        url = "https://mpyitncpkyunkqccefit.supabase.co"
+        key = os.getenv("SUPABASE_KEY")
+
+        supabase = create_client(url, key)
+
+        buffer = io.BytesIO()
+        joblib.dump(final_model, buffer)
+        buffer.seek(0)
+
+        supabase.storage.from_("Models").upload(
+            "point_predicter_final.pkl",
+            buffer,
+            {"upsert": True}   # 🔥 this overwrites existing file
+        )
 
         print("💾 Model saved successfully")
 
