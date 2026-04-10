@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, Boolean, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Float, Boolean, ForeignKey, UniqueConstraint,TIMESTAMP
 from sqlalchemy.orm import relationship
 from .initialization import Base
 
@@ -63,3 +63,17 @@ class PlayerMatchStats(Base):
 
     # 🔗 Relationship back to match
     match = relationship("Match", back_populates="players")
+class ProcessedMatch(Base):
+    __tablename__ = "processed_matches"
+    match_id = Column(String, primary_key=True)
+
+
+class NextMatch(Base):
+    __tablename__ = "next_match"
+    id = Column(String, primary_key=True)
+    team1 = Column(String)
+    team2 = Column(String)
+    venue = Column(String)
+    date = Column(TIMESTAMP)
+    img1 = Column(String)
+    img2 = Column(String)
