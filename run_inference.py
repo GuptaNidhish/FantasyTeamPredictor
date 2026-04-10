@@ -5,19 +5,20 @@ def run_inference_pipeline():
     from difflib import get_close_matches
     from datetime import datetime, timezone
     from db.initialization import SessionLocal
-    from db.models import PlayerMatchStats, Match
+    from db.models import PlayerMatchStats, Match, NextMatch  # ✅ CHANGED: Added NextMatch model
     from sqlalchemy import func, case
     from db.computefeatures import get_latest_players_df, compute_features
     import requests
-    import json
     import os
     import pickle
-    # ================= FILE TO STORE ALL UPCOMING MATCHES =================
-    NEXT_MATCH_FILE = "next_match.json"
+
+    # ❌ REMOVED: NEXT_MATCH_FILE (no JSON usage anymore)
+
     MODEL_COLS_URL = "https://mpyitncpkyunkqccefit.supabase.co/storage/v1/object/public/Models/model_cols.pkl"
     MODEL_COLS_PATH = "modelcols.pkl"
     MODEL_URL = "https://mpyitncpkyunkqccefit.supabase.co/storage/v1/object/public/Models/point_predicter_final.pkl"
     MODEL_PATH = "model.pkl"
+
     def download_model_cols():
         print("Downloading model cols from Supabase...")
         response = requests.get(MODEL_COLS_URL)
@@ -27,6 +28,7 @@ def run_inference_pipeline():
             print("Model cols downloaded successfully!")
         else:
             raise Exception("Failed to download model cols")
+
     def download_model():
         print("Downloading model from Supabase...")
         response = requests.get(MODEL_URL)
@@ -36,47 +38,37 @@ def run_inference_pipeline():
             print("Model downloaded successfully!")
         else:
             raise Exception("Failed to download model")
-    # ================= FIXED: ROBUST SAVE FUNCTION =================
-    def save_next_match(match):
+
+    # ================= NEW: SAVE MATCH TO DATABASE =================
+    def save_next_match_to_db(session, match):
         """
-        Save the next upcoming match to next_match.json.
-        Appends to file if it exists and avoids duplicates.
+        ✅ CHANGED: Save next match into DB instead of JSON file
+        Avoid duplicates using match id
         """
 
-        # ✅ FIX: Handle existing file safely (list/dict/corrupt cases)
-        if os.path.exists(NEXT_MATCH_FILE):
-            with open(NEXT_MATCH_FILE, "r") as f:
-                try:
-                    existing = json.load(f)
+        existing = session.query(NextMatch).filter(NextMatch.id == match['id']).first()
 
-                    # ✅ FIX: Convert old dict format → list
-                    if isinstance(existing, dict):
-                        existing = [existing]
+        if existing:
+            return  # already exists, do nothing
 
-                    # ✅ FIX: If somehow not list → reset
-                    if not isinstance(existing, list):
-                        existing = []
+        new_match = NextMatch(
+            id=match['id'],
+            team1=match['team1'],
+            team2=match['team2'],
+            venue=match['venue'],
+            date=match['date'],
+            img1=match['img1'],
+            img2=match['img2']
+        )
 
-                except json.JSONDecodeError:
-                    existing = []
-        else:
-            existing = []
+        session.add(new_match)
+        session.commit()
 
-        # ✅ FIX: Safe duplicate check (avoid crash if bad data present)
-        if not any(isinstance(m, dict) and m.get('id') == match['id'] for m in existing):
-            existing.append(match)
-
-        # Save updated list
-        with open(NEXT_MATCH_FILE, "w") as f:
-            json.dump(existing, f, indent=2)
-
-    # ================= CREATE SINGLE SESSION =================
+    # ================= CREATE SESSION =================
     session = SessionLocal()
 
     if not os.path.exists(MODEL_PATH):
         download_model()
-
-    # Now load model
 
     with open(MODEL_PATH, "rb") as f:
         model = pickle.load(f)
@@ -112,14 +104,17 @@ def run_inference_pipeline():
         )
         
         next_match = upcoming_matches[0]
+
         img1 = ""
         img2 = ""
+
         if(next_match['teamInfo'][0]['name'] == next_match['teams'][0]):
             img1 = next_match['teamInfo'][0]['img']
             img2 = next_match['teamInfo'][1]['img']
         elif(next_match['teamInfo'][0]['name'] == next_match['teams'][1]):
             img2 = next_match['teamInfo'][0]['img']
             img1 = next_match['teamInfo'][1]['img']
+
         return {
             "id": next_match['id'],
             "team1": next_match['teams'][0],
@@ -142,13 +137,13 @@ def run_inference_pipeline():
                 for player in team['players']:
                     name = player['name']
                     team1_squad.append(name)
-                    playerttoimg[name] = player.get('playerImg')  # safe access
+                    playerttoimg[name] = player.get('playerImg')
 
             elif team_name == team2.lower():
                 for player in team['players']:
                     name = player['name']
                     team2_squad.append(name)
-                    playerttoimg[name] = player.get('playerImg')  # safe access
+                    playerttoimg[name] = player.get('playerImg')
 
         return team1_squad, team2_squad, playerttoimg
 
@@ -159,14 +154,14 @@ def run_inference_pipeline():
         session.close()
         return None
 
-    # ================= SAVE MATCH (APPEND + NO DUPLICATES) =================
-    save_next_match(next_match)
+    # ================= SAVE MATCH TO DB =================
+    save_next_match_to_db(session, next_match)  # ✅ CHANGED
 
     team1 = next_match['team1']
     team2 = next_match['team2']
     venue = next_match['venue']
 
-    team1_squad, team2_squad,playertoimg = get_team_squads(data_api_1, team1, team2)
+    team1_squad, team2_squad, playertoimg = get_team_squads(data_api_1, team1, team2)
 
     # ================= PLAYER MAPPING =================
     unique_players = session.query(
@@ -242,13 +237,13 @@ def run_inference_pipeline():
 
     # ================= ENCODING =================
     players_df_encoded = pd.get_dummies(players_df, columns=['team', 'opponent', 'pitch_type'])
+
     if not os.path.exists(MODEL_COLS_PATH):
         download_model_cols()
 
-    # Now load model cols
-
     with open(MODEL_COLS_PATH, "rb") as f:
         model_columns = pickle.load(f)
+
     for col in model_columns:
         if col not in players_df_encoded.columns:
             players_df_encoded[col] = 0
@@ -403,9 +398,9 @@ def run_inference_pipeline():
         "captain": captain,
         "vice_captain": vice_captain,
         "players_df": players_df,
-        "team1_name":next_match['team1'],
-        "team2_name":next_match['team2'],
+        "team1_name": next_match['team1'],
+        "team2_name": next_match['team2'],
         "team1_img": next_match['img1'],
         "team2_img": next_match['img2'],
-        "playertoimg":playertoimg
+        "playertoimg": playertoimg
     }
